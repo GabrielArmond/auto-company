@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler } from 'express';
 import { config } from '../config';
 
-// O Express identifica o handler de erro pela aridade (4 parâmetros), por isso o _next.
+// Express detects error handlers by arity (4 parameters), hence the unused _next.
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   const status: number = typeof err?.status === 'number' ? err.status : 500;
   const body: { error: string; details?: string[] } = {

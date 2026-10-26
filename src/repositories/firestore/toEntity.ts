@@ -1,6 +1,6 @@
 import { Timestamp, type DocumentSnapshot } from 'firebase/firestore';
 
-// Converte um DocumentSnapshot em objeto simples, trocando Timestamps por ISO strings.
+// Converts a DocumentSnapshot into a plain object, turning Timestamps into ISO strings.
 export function toEntity<T extends { id: string }>(doc: DocumentSnapshot): T {
   const entity: Record<string, unknown> = { id: doc.id };
 

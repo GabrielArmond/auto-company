@@ -1,6 +1,6 @@
-import type { AutomovelService } from './automovelService';
+import type { VehicleService } from './vehicleService';
 
-// Conjunto de services que o app recebe (montado em container.ts ou nos testes).
+// Set of services the app receives (built in container.ts or in tests).
 export interface Services {
-  automovelService: AutomovelService;
+  vehicleService: VehicleService;
 }

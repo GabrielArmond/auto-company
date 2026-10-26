@@ -11,19 +11,19 @@ const ENV_VARS = {
   appId: 'FIREBASE_APP_ID',
 } as const;
 
-// Configuração do app web (Console Firebase > Configurações do projeto > Seus apps).
+// Web app config (Firebase Console > Project settings > Your apps).
 export function getDb(): Firestore {
-  const app = getApps()[0] ?? initializeApp(validarConfig());
+  const app = getApps()[0] ?? initializeApp(validateConfig());
   return getFirestore(app);
 }
 
-function validarConfig() {
-  const faltando = (Object.keys(ENV_VARS) as (keyof typeof ENV_VARS)[])
-    .filter((campo) => !config.firebase[campo])
-    .map((campo) => ENV_VARS[campo]);
+function validateConfig() {
+  const missing = (Object.keys(ENV_VARS) as (keyof typeof ENV_VARS)[])
+    .filter((field) => !config.firebase[field])
+    .map((field) => ENV_VARS[field]);
 
-  if (faltando.length) {
-    throw new Error(`Variáveis de ambiente do Firebase ausentes: ${faltando.join(', ')}`);
+  if (missing.length) {
+    throw new Error(`Missing Firebase environment variables: ${missing.join(', ')}`);
   }
 
   return config.firebase;

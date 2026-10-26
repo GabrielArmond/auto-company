@@ -1,15 +1,15 @@
 import { Router } from 'express';
 import type { Services } from '../services';
-import { automoveisRouter } from './automoveis';
+import { vehiclesRouter } from './vehicles';
 
-export function apiRouter({ automovelService }: Services) {
+export function apiRouter({ vehicleService }: Services) {
   const router = Router();
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok', uptime: process.uptime() });
   });
 
-  router.use('/automoveis', automoveisRouter(automovelService));
+  router.use('/vehicles', vehiclesRouter(vehicleService));
 
   return router;
 }

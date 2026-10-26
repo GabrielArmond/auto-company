@@ -10,7 +10,7 @@ import { notFound } from './middlewares/notFound';
 import { apiRouter } from './routes';
 import type { Services } from './services';
 
-// Recebe os services prontos (ver container.ts), o que permite injetar dublês nos testes.
+// Receives ready-made services (see container.ts), which allows injecting test doubles.
 export function createApp(services: Services) {
   const app = express();
 
@@ -21,7 +21,7 @@ export function createApp(services: Services) {
 
   app.use('/api', apiRouter(services));
 
-  // Frontend estático (opcional): coloque o build em /public
+  // Static frontend (optional): place the build in /public
   app.use(express.static(path.join(__dirname, '..', 'public')));
 
   app.use(notFound);

@@ -1,77 +1,77 @@
 # auto-company
 
-Web API para controle de utilização dos automóveis de uma empresa.
-Node.js + TypeScript + Express 5, persistência no Firebase (Firestore) e testes com Jest + Supertest.
+Web API to manage the usage of a company's vehicles.
+Node.js + TypeScript + Express 5, persisted in Firebase (Firestore), tested with Jest + Supertest.
 
-## Requisitos
+## Requirements
 
-- Node.js >= 22 (veja `.nvmrc`)
-- Um projeto Firebase com Firestore habilitado
+- Node.js >= 22 (see `.nvmrc`)
+- A Firebase project with Firestore enabled
 
-## Começando
+## Getting started
 
 ```bash
 npm install
-cp .env.example .env   # preencha as variáveis FIREBASE_*
-npm run dev            # http://localhost:3000 (reinicia ao salvar)
+cp .env.example .env   # fill in the FIREBASE_* variables
+npm run dev            # http://localhost:3000 (restarts on save)
 ```
 
-Os valores vêm da configuração do app web: Console do Firebase → Configurações do projeto →
-Seus apps → App da Web → `firebaseConfig`. **Não versione o `.env`.**
+The values come from the web app config: Firebase Console → Project settings →
+Your apps → Web app → `firebaseConfig`. **Do not commit `.env`.**
 
-A conexão usa o SDK cliente do Firebase, então o acesso ao Firestore passa pelas
-**Security Rules** do projeto: elas precisam permitir leitura/escrita nas coleções usadas pela API.
+The connection uses the Firebase client SDK, so Firestore access goes through the project's
+**Security Rules**: they must allow read/write on the collections used by the API.
 
 ## Scripts
 
-| Script                  | Descrição                                   |
-| ----------------------- | ------------------------------------------- |
-| `npm run dev`           | Sobe com `tsx watch`                        |
-| `npm run build`         | Compila para `dist/`                        |
-| `npm start`             | Sobe a versão compilada                     |
-| `npm run typecheck`     | Checa tipos (src + tests)                   |
-| `npm test`              | Roda os testes                              |
-| `npm run test:watch`    | Testes em modo watch                        |
-| `npm run test:coverage` | Testes com relatório de cobertura           |
-| `npm run lint`          | ESLint                                      |
+| Script                  | Description                        |
+| ----------------------- | ---------------------------------- |
+| `npm run dev`           | Starts with `tsx watch`            |
+| `npm run build`         | Compiles to `dist/`                |
+| `npm start`             | Starts the compiled build          |
+| `npm run typecheck`     | Type-checks (src + tests)          |
+| `npm test`              | Runs the tests                     |
+| `npm run test:watch`    | Tests in watch mode                |
+| `npm run test:coverage` | Tests with coverage report         |
+| `npm run lint`          | ESLint                             |
 
-## Estrutura
+## Structure
 
 ```
 src/
-  app.ts            # cria o app Express a partir dos services (sem listen)
-  server.ts         # ponto de entrada: monta o container + listen
-  container.ts      # liga repositórios do Firestore aos services
-  config/           # variáveis de ambiente e inicialização do Firebase
-  models/           # tipos das entidades
-  validators/       # validação/normalização da entrada
-  services/         # regras de negócio
-  repositories/     # contratos + implementação Firestore
-  controllers/      # camada HTTP
-  routes/           # definição das rotas (/api/...)
-  middlewares/      # 404 e tratamento de erros
+  app.ts            # builds the Express app from the services (no listen)
+  server.ts         # entry point: builds the container + listen
+  container.ts      # wires Firestore repositories into the services
+  config/           # environment variables and Firebase initialization
+  models/           # entity types
+  validators/       # input validation/normalization
+  services/         # business rules
+  repositories/     # contracts + Firestore implementation
+  controllers/      # HTTP layer
+  routes/           # route definitions (/api/...)
+  middlewares/      # 404 and error handling
 tests/
-  support/          # repositórios em memória (substituem o Firestore nos testes)
-  unit/             # validators e services
-  integration/      # rotas HTTP com supertest
+  support/          # in-memory repositories (replace Firestore in tests)
+  unit/             # validators and services
+  integration/      # HTTP routes with supertest
 ```
 
 ## Endpoints
 
-### Automóveis
+### Vehicles
 
-| Método | Rota                   | Descrição                                      |
-| ------ | ---------------------- | ---------------------------------------------- |
-| GET    | `/api/automoveis`      | Lista (filtros opcionais: `?cor=` e `?marca=`) |
-| GET    | `/api/automoveis/:id`  | Busca por id                                   |
-| POST   | `/api/automoveis`      | Cadastra `{ placa, cor, marca }`               |
-| PUT    | `/api/automoveis/:id`  | Atualiza `{ placa, cor, marca }`               |
-| DELETE | `/api/automoveis/:id`  | Exclui                                         |
+| Method | Route                | Description                                       |
+| ------ | -------------------- | ------------------------------------------------- |
+| GET    | `/api/vehicles`      | List (optional filters: `?color=` and `?brand=`)  |
+| GET    | `/api/vehicles/:id`  | Get by id                                         |
+| POST   | `/api/vehicles`      | Create `{ plate, color, brand }`                  |
+| PUT    | `/api/vehicles/:id`  | Update `{ plate, color, brand }`                  |
+| DELETE | `/api/vehicles/:id`  | Delete                                            |
 
-A placa é normalizada (`abc-1d23` → `ABC1D23`), aceita os padrões antigo e Mercosul e deve ser única (409 se repetida).
-Os filtros comparam o valor exato (diferenciam maiúsculas de minúsculas).
+The plate is normalized (`abc-1d23` → `ABC1D23`), accepts the legacy Brazilian and Mercosur
+formats, and must be unique (409 if duplicated). Filters match the exact value (case-sensitive).
 
-### Erros
+### Errors
 
-Respostas de erro seguem o formato `{ "error": "mensagem", "details": ["..."] }`
-(400 validação, 404 não encontrado, 409 conflito).
+Error responses follow the format `{ "error": "message", "details": ["..."] }`
+(400 validation, 404 not found, 409 conflict).

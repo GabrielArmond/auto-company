@@ -1,15 +1,15 @@
 import { getDb } from './config/firebase';
-import { createFirestoreAutomovelRepository } from './repositories/firestore/automovelRepository';
-import { createAutomovelService } from './services/automovelService';
+import { createFirestoreVehicleRepository } from './repositories/firestore/vehicleRepository';
 import type { Services } from './services';
+import { createVehicleService } from './services/vehicleService';
 
-// Monta as dependências reais (Firestore). Nos testes, o app recebe repositórios em memória.
+// Wires the real dependencies (Firestore). In tests, the app receives in-memory repositories.
 export function createContainer(): Services {
   const db = getDb();
 
-  const automovelRepository = createFirestoreAutomovelRepository(db);
+  const vehicleRepository = createFirestoreVehicleRepository(db);
 
   return {
-    automovelService: createAutomovelService(automovelRepository),
+    vehicleService: createVehicleService(vehicleRepository),
   };
 }
