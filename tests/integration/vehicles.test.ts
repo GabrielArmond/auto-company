@@ -35,6 +35,12 @@ describe('API /api/vehicles', () => {
     expect(res.body).toEqual([expect.objectContaining({ id: '1' })]);
   });
 
+  it('GET filters ignoring case and keeps the original values in the response', async () => {
+    const res = await request(app).get('/api/vehicles').query({ color: 'BLACK', brand: 'fiat' });
+
+    expect(res.body).toEqual([expect.objectContaining({ id: '1', color: 'Black', brand: 'Fiat' })]);
+  });
+
   it('GET /:id returns 404 when it does not exist', async () => {
     const res = await request(app).get('/api/vehicles/99');
 

@@ -84,7 +84,9 @@ document is served at `/api/docs.json` (source: `src/docs/openapi.ts`).
 | DELETE | `/api/vehicles/:id`  | Delete                                            |
 
 The plate is normalized (`abc-1d23` → `ABC1D23`), accepts the legacy Brazilian and Mercosur
-formats, and must be unique (409 if duplicated). Filters match the exact value (case-sensitive).
+formats, and must be unique (409 if duplicated). Filters match the whole value, ignoring case
+(`?color=black` finds "Black"); lowercase copies (`colorLower`, `brandLower`) are stored in
+Firestore for that and are not exposed by the API.
 
 ### Errors
 

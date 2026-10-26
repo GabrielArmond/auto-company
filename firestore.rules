@@ -8,11 +8,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // colorLower/brandLower are lowercase copies used for case-insensitive filtering.
     function isValidVehicle(data) {
-      return data.keys().hasOnly(['plate', 'color', 'brand', 'createdAt', 'updatedAt'])
+      return data.keys().hasOnly(['plate', 'color', 'brand', 'colorLower', 'brandLower', 'createdAt', 'updatedAt'])
         && data.plate is string && data.plate.matches('^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$')
         && data.color is string && data.color.size() > 0
         && data.brand is string && data.brand.size() > 0
+        && data.colorLower == data.color.lower()
+        && data.brandLower == data.brand.lower()
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }

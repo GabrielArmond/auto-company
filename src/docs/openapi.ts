@@ -63,7 +63,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Vehicles'],
         summary: 'List vehicles',
-        description: 'Filters match the exact value (case-sensitive) and can be combined.',
+        description: 'Filters match the whole value, ignoring case, and can be combined.',
         parameters: [
           { name: 'color', in: 'query', schema: { type: 'string' }, example: 'Black' },
           { name: 'brand', in: 'query', schema: { type: 'string' }, example: 'Fiat' },

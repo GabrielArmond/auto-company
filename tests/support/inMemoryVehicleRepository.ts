@@ -1,5 +1,6 @@
 import type { Vehicle, VehicleInput } from '../../src/models/vehicle';
 import type { VehicleRepository } from '../../src/repositories/vehicleRepository';
+import { normalizeSearchTerm } from '../../src/utils/normalizeSearchTerm';
 
 type Seed = VehicleInput & { id?: string };
 
@@ -19,7 +20,10 @@ export function createInMemoryVehicleRepository(seed: Seed[] = []): VehicleRepos
 
   return {
     async list({ color, brand } = {}) {
-      return [...docs.values()].filter((v) => (!color || v.color === color) && (!brand || v.brand === brand));
+      const matches = (value: string, filter?: string) =>
+        !filter || normalizeSearchTerm(value) === normalizeSearchTerm(filter);
+
+      return [...docs.values()].filter((v) => matches(v.color, color) && matches(v.brand, brand));
     },
 
     async findById(id) {

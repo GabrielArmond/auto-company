@@ -35,6 +35,15 @@ describe('vehicleService', () => {
       expect(result.map((v) => v.id)).toEqual(['1']);
     });
 
+    it.each([
+      { color: 'black', brand: 'FIAT' },
+      { color: 'BLACK', brand: 'fiat' },
+      { color: 'bLaCk', brand: 'FiAt' },
+    ])('filters ignoring case (%o)', async (filters) => {
+      const result = await service.list(filters);
+      expect(result.map((v) => v.id)).toEqual(['1']);
+    });
+
     it('ignores empty filters and trims whitespace', async () => {
       const spy = jest.spyOn(repository, 'list');
 
