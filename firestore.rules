@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The API signs in anonymously on startup; unauthenticated clients are rejected.
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasOnly(['plate', 'color', 'brand', 'createdAt', 'updatedAt'])
+        && data.plate is string && data.plate.matches('^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$')
+        && data.color is string && data.color.size() > 0
+        && data.brand is string && data.brand.size() > 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidVehicle(request.resource.data);
+    }
+
+    // Any other collection is denied by default.
+  }
+}

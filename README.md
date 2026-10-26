@@ -19,8 +19,18 @@ npm run dev            # http://localhost:3000 (restarts on save)
 The values come from the web app config: Firebase Console → Project settings →
 Your apps → Web app → `firebaseConfig`. **Do not commit `.env`.**
 
-The connection uses the Firebase client SDK, so Firestore access goes through the project's
-**Security Rules**: they must allow read/write on the collections used by the API.
+### Firebase setup
+
+1. **Firestore**: create the database (Firebase Console → Firestore Database).
+2. **Anonymous auth**: enable it in Firebase Console → Authentication → Sign-in method → Anonymous.
+   The API uses the Firebase client SDK and signs in anonymously on startup.
+3. **Security Rules**: publish [`firestore.rules`](firestore.rules). They only allow authenticated
+   clients and validate the shape of each document. Either paste the file into Firebase Console →
+   Firestore Database → Rules, or deploy with the Firebase CLI:
+
+   ```bash
+   npx firebase-tools deploy --only firestore:rules --project <your-project-id>
+   ```
 
 ## Scripts
 

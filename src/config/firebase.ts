@@ -1,4 +1,5 @@
-import { getApps, initializeApp } from 'firebase/app';
+import { FirebaseError, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { config } from './index';
 
@@ -11,10 +12,29 @@ const ENV_VARS = {
   appId: 'FIREBASE_APP_ID',
 } as const;
 
-// Web app config (Firebase Console > Project settings > Your apps).
-export function getDb(): Firestore {
+// Web app config (Firebase Console > Project settings > Your apps) plus anonymous sign-in,
+// so the Security Rules can require an authenticated client (request.auth != null).
+export async function connectFirestore(): Promise<Firestore> {
   const app = getApps()[0] ?? initializeApp(validateConfig());
+  await signIn(app);
   return getFirestore(app);
+}
+
+async function signIn(app: FirebaseApp) {
+  const auth = getAuth(app);
+  if (auth.currentUser) return;
+
+  try {
+    await signInAnonymously(auth);
+  } catch (error) {
+    if (error instanceof FirebaseError && error.code === 'auth/admin-restricted-operation') {
+      throw new Error(
+        'Anonymous sign-in is disabled. Enable it in Firebase Console > Authentication > Sign-in method.',
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 function validateConfig() {
