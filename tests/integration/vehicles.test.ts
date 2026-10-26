@@ -1,7 +1,6 @@
 import request from 'supertest';
 import type { Express } from 'express';
-import { createApp } from '../../src/app';
-import { createVehicleService } from '../../src/services/vehicleService';
+import { createTestApp } from '../support/createTestApp';
 import { createInMemoryVehicleRepository } from '../support/inMemoryVehicleRepository';
 
 describe('API /api/vehicles', () => {
@@ -12,7 +11,7 @@ describe('API /api/vehicles', () => {
       { id: '1', plate: 'AAA1111', color: 'Black', brand: 'Fiat' },
       { id: '2', plate: 'BBB2222', color: 'White', brand: 'Ford' },
     ]);
-    app = createApp({ vehicleService: createVehicleService(vehicleRepository) });
+    app = createTestApp({ vehicleRepository });
   });
 
   it('GET /api/health', async () => {

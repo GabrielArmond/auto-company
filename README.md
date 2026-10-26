@@ -88,6 +88,21 @@ formats, and must be unique (409 if duplicated). Filters match the whole value, 
 (`?color=black` finds "Black"); lowercase copies (`colorLower`, `brandLower`) are stored in
 Firestore for that and are not exposed by the API.
 
+### Drivers
+
+| Method | Route               | Description                          |
+| ------ | ------------------- | ------------------------------------ |
+| GET    | `/api/drivers`      | List (optional filter: `?name=`)     |
+| GET    | `/api/drivers/:id`  | Get by id                            |
+| POST   | `/api/drivers`      | Create `{ name }`                    |
+| PUT    | `/api/drivers/:id`  | Update `{ name }`                    |
+| DELETE | `/api/drivers/:id`  | Delete                               |
+
+The name is trimmed (repeated spaces collapsed) and limited to 100 characters; homonyms are allowed.
+The name filter ignores case and accents and matches the start of any word: `joao`, `silva` and
+`jo sil` all find "João da Silva". For that, the prefixes of each word are stored in Firestore
+(`nameSearch`), which is not exposed by the API.
+
 ### Errors
 
 Error responses follow the format `{ "error": "message", "details": ["..."] }`

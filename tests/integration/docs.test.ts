@@ -1,14 +1,12 @@
 import request from 'supertest';
 import type { Express } from 'express';
-import { createApp } from '../../src/app';
-import { createVehicleService } from '../../src/services/vehicleService';
-import { createInMemoryVehicleRepository } from '../support/inMemoryVehicleRepository';
+import { createTestApp } from '../support/createTestApp';
 
 describe('API docs', () => {
   let app: Express;
 
   beforeEach(() => {
-    app = createApp({ vehicleService: createVehicleService(createInMemoryVehicleRepository()) });
+    app = createTestApp();
   });
 
   it('GET /api/docs.json returns the OpenAPI document', async () => {
@@ -16,7 +14,9 @@ describe('API docs', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.openapi).toMatch(/^3\./);
-    expect(Object.keys(res.body.paths)).toEqual(expect.arrayContaining(['/health', '/vehicles', '/vehicles/{id}']));
+    expect(Object.keys(res.body.paths)).toEqual(
+      expect.arrayContaining(['/health', '/vehicles', '/vehicles/{id}', '/drivers', '/drivers/{id}']),
+    );
   });
 
   it('GET /api/docs/ serves the Swagger UI', async () => {

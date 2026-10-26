@@ -1,10 +1,6 @@
 import type { Request, Response } from 'express';
 import type { VehicleService } from '../services/vehicleService';
-
-// Query strings may arrive as arrays (?color=a&color=b); only plain values are considered.
-function queryString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
+import { queryString } from '../utils/queryString';
 
 export function createVehicleController(vehicleService: VehicleService) {
   return {

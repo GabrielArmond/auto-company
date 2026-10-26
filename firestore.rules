@@ -25,6 +25,20 @@ service cloud.firestore {
       allow create, update: if isSignedIn() && isValidVehicle(request.resource.data);
     }
 
+    // nameSearch holds the word prefixes used for name filtering (at most one per character).
+    function isValidDriver(data) {
+      return data.keys().hasOnly(['name', 'nameSearch', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.nameSearch is list && data.nameSearch.size() <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /drivers/{driverId} {
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidDriver(request.resource.data);
+    }
+
     // Any other collection is denied by default.
   }
 }

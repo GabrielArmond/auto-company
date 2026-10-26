@@ -1,26 +1,44 @@
 import type { OpenAPIV3 } from 'openapi-types';
 
-const errorResponse = (description: string): OpenAPIV3.ResponseObject => ({
+const ref = (schema: string): OpenAPIV3.ReferenceObject => ({ $ref: `#/components/schemas/${schema}` });
+
+const jsonResponse = (
+  description: string,
+  schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject,
+): OpenAPIV3.ResponseObject => ({
   description,
-  content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+  content: { 'application/json': { schema } },
 });
 
-const idParam: OpenAPIV3.ParameterObject = {
+const errorResponse = (description: string) => jsonResponse(description, ref('Error'));
+
+const jsonBody = (schema: string): OpenAPIV3.RequestBodyObject => ({
+  required: true,
+  content: { 'application/json': { schema: ref(schema) } },
+});
+
+const idParam = (resource: string): OpenAPIV3.ParameterObject => ({
   name: 'id',
   in: 'path',
   required: true,
   schema: { type: 'string' },
-  description: 'Vehicle id',
-};
+  description: `${resource} id`,
+});
 
-const vehicleBody: OpenAPIV3.RequestBodyObject = {
-  required: true,
-  content: { 'application/json': { schema: { $ref: '#/components/schemas/VehicleInput' } } },
-};
-
-const vehicleResponse = (description: string): OpenAPIV3.ResponseObject => ({
-  description,
-  content: { 'application/json': { schema: { $ref: '#/components/schemas/Vehicle' } } },
+// Stored entity = id + input fields + timestamps.
+const entitySchema = (inputSchema: string): OpenAPIV3.SchemaObject => ({
+  allOf: [
+    { type: 'object', required: ['id'], properties: { id: { type: 'string', example: 'q8Zt1nV3kXyP' } } },
+    ref(inputSchema),
+    {
+      type: 'object',
+      required: ['createdAt', 'updatedAt'],
+      properties: {
+        createdAt: { type: 'string', format: 'date-time' },
+        updatedAt: { type: 'string', format: 'date-time' },
+      },
+    },
+  ],
 });
 
 export const openApiDocument: OpenAPIV3.Document = {
@@ -35,6 +53,7 @@ export const openApiDocument: OpenAPIV3.Document = {
   tags: [
     { name: 'Health', description: 'Service status' },
     { name: 'Vehicles', description: 'Vehicle registry' },
+    { name: 'Drivers', description: 'Driver registry' },
   ],
   paths: {
     '/health': {
@@ -42,20 +61,13 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['Health'],
         summary: 'Health check',
         responses: {
-          200: {
-            description: 'Service is up',
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    status: { type: 'string', example: 'ok' },
-                    uptime: { type: 'number', example: 12.34 },
-                  },
-                },
-              },
+          200: jsonResponse('Service is up', {
+            type: 'object',
+            properties: {
+              status: { type: 'string', example: 'ok' },
+              uptime: { type: 'number', example: 12.34 },
             },
-          },
+          }),
         },
       },
     },
@@ -69,34 +81,27 @@ export const openApiDocument: OpenAPIV3.Document = {
           { name: 'brand', in: 'query', schema: { type: 'string' }, example: 'Fiat' },
         ],
         responses: {
-          200: {
-            description: 'Vehicles found',
-            content: {
-              'application/json': {
-                schema: { type: 'array', items: { $ref: '#/components/schemas/Vehicle' } },
-              },
-            },
-          },
+          200: jsonResponse('Vehicles found', { type: 'array', items: ref('Vehicle') }),
         },
       },
       post: {
         tags: ['Vehicles'],
         summary: 'Create a vehicle',
-        requestBody: vehicleBody,
+        requestBody: jsonBody('VehicleInput'),
         responses: {
-          201: vehicleResponse('Vehicle created'),
+          201: jsonResponse('Vehicle created', ref('Vehicle')),
           400: errorResponse('Invalid data'),
           409: errorResponse('Plate already registered'),
         },
       },
     },
     '/vehicles/{id}': {
-      parameters: [idParam],
+      parameters: [idParam('Vehicle')],
       get: {
         tags: ['Vehicles'],
         summary: 'Get a vehicle by id',
         responses: {
-          200: vehicleResponse('Vehicle found'),
+          200: jsonResponse('Vehicle found', ref('Vehicle')),
           404: errorResponse('Vehicle not found'),
         },
       },
@@ -104,9 +109,9 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['Vehicles'],
         summary: 'Update a vehicle',
         description: 'Replaces all fields; every field is required.',
-        requestBody: vehicleBody,
+        requestBody: jsonBody('VehicleInput'),
         responses: {
-          200: vehicleResponse('Vehicle updated'),
+          200: jsonResponse('Vehicle updated', ref('Vehicle')),
           400: errorResponse('Invalid data'),
           404: errorResponse('Vehicle not found'),
           409: errorResponse('Plate already registered'),
@@ -118,6 +123,57 @@ export const openApiDocument: OpenAPIV3.Document = {
         responses: {
           204: { description: 'Vehicle deleted' },
           404: errorResponse('Vehicle not found'),
+        },
+      },
+    },
+    '/drivers': {
+      get: {
+        tags: ['Drivers'],
+        summary: 'List drivers',
+        description:
+          'The name filter ignores case and accents and matches the start of any word: ' +
+          '"joao", "silva" and "jo sil" all find "João da Silva".',
+        parameters: [{ name: 'name', in: 'query', schema: { type: 'string' }, example: 'joao' }],
+        responses: {
+          200: jsonResponse('Drivers found', { type: 'array', items: ref('Driver') }),
+        },
+      },
+      post: {
+        tags: ['Drivers'],
+        summary: 'Create a driver',
+        requestBody: jsonBody('DriverInput'),
+        responses: {
+          201: jsonResponse('Driver created', ref('Driver')),
+          400: errorResponse('Invalid data'),
+        },
+      },
+    },
+    '/drivers/{id}': {
+      parameters: [idParam('Driver')],
+      get: {
+        tags: ['Drivers'],
+        summary: 'Get a driver by id',
+        responses: {
+          200: jsonResponse('Driver found', ref('Driver')),
+          404: errorResponse('Driver not found'),
+        },
+      },
+      put: {
+        tags: ['Drivers'],
+        summary: 'Update a driver',
+        requestBody: jsonBody('DriverInput'),
+        responses: {
+          200: jsonResponse('Driver updated', ref('Driver')),
+          400: errorResponse('Invalid data'),
+          404: errorResponse('Driver not found'),
+        },
+      },
+      delete: {
+        tags: ['Drivers'],
+        summary: 'Delete a driver',
+        responses: {
+          204: { description: 'Driver deleted' },
+          404: errorResponse('Driver not found'),
         },
       },
     },
@@ -137,20 +193,15 @@ export const openApiDocument: OpenAPIV3.Document = {
           brand: { type: 'string', example: 'Fiat' },
         },
       },
-      Vehicle: {
-        allOf: [
-          { type: 'object', required: ['id'], properties: { id: { type: 'string', example: 'q8Zt1nV3kXyP' } } },
-          { $ref: '#/components/schemas/VehicleInput' },
-          {
-            type: 'object',
-            required: ['createdAt', 'updatedAt'],
-            properties: {
-              createdAt: { type: 'string', format: 'date-time' },
-              updatedAt: { type: 'string', format: 'date-time' },
-            },
-          },
-        ],
+      Vehicle: entitySchema('VehicleInput'),
+      DriverInput: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string', maxLength: 100, example: 'João da Silva' },
+        },
       },
+      Driver: entitySchema('DriverInput'),
       Error: {
         type: 'object',
         required: ['error'],
@@ -159,7 +210,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           details: {
             type: 'array',
             items: { type: 'string' },
-            example: ['The "plate" field is required'],
+            example: ['The "name" field is required'],
           },
         },
       },
