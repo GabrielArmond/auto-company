@@ -47,6 +47,36 @@ describe('API /api/vehicles', () => {
     expect(res.body.error).toBe('Vehicle not found');
   });
 
+  it('GET /plate/:plate returns the vehicle with that plate', async () => {
+    const res = await request(app).get('/api/vehicles/plate/BBB2222');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: '2', plate: 'BBB2222', color: 'White', brand: 'Ford' });
+  });
+
+  it('GET /plate/:plate accepts lowercase and hyphenated plates', async () => {
+    const res = await request(app).get('/api/vehicles/plate/aaa-1111');
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe('1');
+  });
+
+  it('GET /plate/:plate returns 404 when no vehicle has the plate', async () => {
+    const res = await request(app).get('/api/vehicles/plate/ZZZ9999');
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Vehicle not found');
+  });
+
+  it('GET /plate/:plate finds a vehicle right after it is created', async () => {
+    await request(app).post('/api/vehicles').send({ plate: 'DDD4D44', color: 'Silver', brand: 'VW' });
+
+    const res = await request(app).get('/api/vehicles/plate/ddd4d44');
+
+    expect(res.status).toBe(200);
+    expect(res.body.plate).toBe('DDD4D44');
+  });
+
   it('POST creates and PUT/DELETE operate on the record', async () => {
     const created = await request(app).post('/api/vehicles').send({ plate: 'ccc-3c33', color: 'Silver', brand: 'VW' });
     expect(created.status).toBe(201);

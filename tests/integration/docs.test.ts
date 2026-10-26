@@ -19,6 +19,7 @@ describe('API docs', () => {
         '/health',
         '/vehicles',
         '/vehicles/{id}',
+        '/vehicles/plate/{plate}',
         '/drivers',
         '/drivers/{id}',
         '/vehicle-usages',

@@ -2,7 +2,7 @@ import type { VehicleFilters } from '../models/vehicle';
 import type { VehicleRepository } from '../repositories/vehicleRepository';
 import type { VehicleUsageRepository } from '../repositories/vehicleUsageRepository';
 import { HttpError } from '../utils/HttpError';
-import { validateVehicle } from '../validators/vehicleValidator';
+import { normalizePlate, validateVehicle } from '../validators/vehicleValidator';
 
 export type VehicleService = ReturnType<typeof createVehicleService>;
 
@@ -16,6 +16,12 @@ export function createVehicleService(
     return vehicle;
   }
 
+  async function getByLicensePlate(plate: string) {
+    const vehicle = await vehicleRepository.findByPlate(normalizePlate(plate) as string);
+    if (!vehicle) throw HttpError.notFound('Vehicle not found');
+    return vehicle;
+  }
+
   async function ensurePlateAvailable(plate: string, currentId?: string) {
     const existing = await vehicleRepository.findByPlate(plate);
     if (existing && existing.id !== currentId) {
@@ -25,6 +31,7 @@ export function createVehicleService(
 
   return {
     getById,
+    getByLicensePlate,
 
     list({ color, brand }: VehicleFilters = {}) {
       const filters: VehicleFilters = {};

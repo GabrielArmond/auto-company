@@ -153,17 +153,21 @@ Todas as rotas ficam sob o prefixo `/api`. Os nomes de campos e rotas estão em 
 
 ### Automóveis (`vehicles`)
 
-| Método | Rota                | Descrição                                           |
-| ------ | ------------------- | --------------------------------------------------- |
-| GET    | `/api/vehicles`     | Lista (filtros opcionais: `?color=` e `?brand=`)    |
-| GET    | `/api/vehicles/:id` | Busca pelo id                                       |
-| POST   | `/api/vehicles`     | Cadastra `{ plate, color, brand }`                  |
-| PUT    | `/api/vehicles/:id` | Atualiza `{ plate, color, brand }` (todos os campos) |
-| DELETE | `/api/vehicles/:id` | Exclui                                              |
+| Método | Rota                         | Descrição                                            |
+| ------ | ---------------------------- | ---------------------------------------------------- |
+| GET    | `/api/vehicles`              | Lista (filtros opcionais: `?color=` e `?brand=`)     |
+| GET    | `/api/vehicles/:id`          | Busca pelo id                                        |
+| GET    | `/api/vehicles/plate/:plate` | Busca pela placa                                     |
+| POST   | `/api/vehicles`              | Cadastra `{ plate, color, brand }`                   |
+| PUT    | `/api/vehicles/:id`          | Atualiza `{ plate, color, brand }` (todos os campos) |
+| DELETE | `/api/vehicles/:id`          | Exclui                                               |
 
 - **Placa** (`plate`): aceita o padrão antigo (`ABC1234`) e o Mercosul (`ABC1D23`). Hífens,
   espaços e letras minúsculas são normalizados (`abc-1d23` → `ABC1D23`). Não pode haver duas
   placas iguais (409).
+- **Busca pela placa**: a placa informada na URL passa pela mesma normalização, então
+  `/api/vehicles/plate/abc-1d23` encontra o veículo `ABC1D23`. Retorna 404 se não houver veículo
+  com a placa.
 - **Filtros**: comparam o valor inteiro, sem diferenciar maiúsculas de minúsculas
   (`?color=preto` encontra "Preto") e podem ser combinados.
 

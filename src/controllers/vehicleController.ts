@@ -14,6 +14,10 @@ export function createVehicleController(vehicleService: VehicleService) {
       res.json(await vehicleService.getById(req.params.id));
     },
 
+    async getByLicensePlate(req: Request<{ plate: string }>, res: Response) {
+      res.json(await vehicleService.getByLicensePlate(req.params.plate));
+    },
+
     async create(req: Request, res: Response) {
       res.status(201).json(await vehicleService.create(req.body));
     },

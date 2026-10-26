@@ -79,6 +79,23 @@ describe('vehicleService', () => {
     });
   });
 
+  describe('getByLicensePlate', () => {
+    it('returns the vehicle', async () => {
+      expect(await service.getByLicensePlate('BBB2222')).toMatchObject({ id: '2', plate: 'BBB2222' });
+    });
+
+    it.each(['bbb2222', 'bbb-2222', ' BBB 2222 '])('normalizes the informed plate (%p)', async (plate) => {
+      expect(await service.getByLicensePlate(plate)).toMatchObject({ id: '2' });
+    });
+
+    it('throws 404 when no vehicle has the plate', async () => {
+      await expect(service.getByLicensePlate('ZZZ9999')).rejects.toMatchObject({
+        status: 404,
+        message: 'Vehicle not found',
+      });
+    });
+  });
+
   describe('create', () => {
     it('creates with the normalized plate', async () => {
       const vehicle = await service.create({ plate: 'ddd-4d44', color: 'Silver', brand: 'VW' });

@@ -133,6 +133,26 @@ export const openApiDocument: OpenAPIV3.Document = {
         },
       },
     },
+    '/vehicles/plate/{plate}': {
+      parameters: [
+        {
+          name: 'plate',
+          in: 'path',
+          required: true,
+          schema: { type: 'string' },
+          example: 'ABC1D23',
+          description: 'Legacy (ABC1234) or Mercosur (ABC1D23) format; hyphens/spaces and case are ignored.',
+        },
+      ],
+      get: {
+        tags: ['Vehicles'],
+        summary: 'Get a vehicle by plate',
+        responses: {
+          200: jsonResponse('Vehicle found', ref('Vehicle')),
+          404: errorResponse('Vehicle not found'),
+        },
+      },
+    },
     '/drivers': {
       get: {
         tags: ['Drivers'],
