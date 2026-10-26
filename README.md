@@ -103,6 +103,31 @@ The name filter ignores case and accents and matches the start of any word: `joa
 `jo sil` all find "João da Silva". For that, the prefixes of each word are stored in Firestore
 (`nameSearch`), which is not exposed by the API.
 
+### Vehicle usages
+
+| Method | Route                              | Description                                           |
+| ------ | ---------------------------------- | ----------------------------------------------------- |
+| GET    | `/api/vehicle-usages`              | List, most recent first, with driver and vehicle data |
+| GET    | `/api/vehicle-usages/:id`          | Get by id                                             |
+| POST   | `/api/vehicle-usages`              | Start `{ driverId, vehicleId, reason, startDate? }`   |
+| PATCH  | `/api/vehicle-usages/:id/finish`   | Finish `{ endDate? }`                                 |
+
+Business rules:
+
+- A vehicle can be used by only one driver at a time (409 otherwise).
+- A driver can use only one vehicle at a time (409 otherwise).
+- `startDate`/`endDate` default to now, cannot be in the future, and `endDate` cannot be before `startDate`.
+- A usage can be finished only once (409 otherwise).
+- Vehicles and drivers with an active usage cannot be deleted (409).
+
+Each usage stores a snapshot of the driver (`id`, `name`) and the vehicle (`id`, `plate`, `color`,
+`brand`) at the time it started, so the history stays accurate even if they are edited or deleted later.
+
+The rules are checked by the service and also enforced atomically in Firestore: starting a usage
+creates lock documents in `activeUsages` (`vehicle_<id>` and `driver_<id>`) inside a transaction,
+and finishing it removes them. `firestore.rules` only accepts a usage when both locks were free,
+and blocks deleting a vehicle or driver while its lock exists.
+
 ### Errors
 
 Error responses follow the format `{ "error": "message", "details": ["..."] }`

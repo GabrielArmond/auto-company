@@ -1,6 +1,7 @@
 import type { DriverRepository } from '../../src/repositories/driverRepository';
 import { createDriverService, type DriverService } from '../../src/services/driverService';
 import { createInMemoryDriverRepository } from '../support/inMemoryDriverRepository';
+import { createInMemoryVehicleUsageRepository } from '../support/inMemoryVehicleUsageRepository';
 
 describe('driverService', () => {
   let repository: DriverRepository;
@@ -12,7 +13,15 @@ describe('driverService', () => {
       { id: '2', name: 'Maria Souza' },
       { id: '3', name: 'Joana Silveira' },
     ]);
-    service = createDriverService(repository);
+    const vehicleUsageRepository = createInMemoryVehicleUsageRepository([
+      {
+        driver: { id: '3', name: 'Joana Silveira' },
+        vehicle: { id: 'v1', plate: 'AAA1111', color: 'Black', brand: 'Fiat' },
+        reason: 'Ongoing trip',
+        startDate: new Date('2026-01-02T08:00:00Z'),
+      },
+    ]);
+    service = createDriverService(repository, vehicleUsageRepository);
   });
 
   describe('list', () => {
@@ -95,6 +104,11 @@ describe('driverService', () => {
     it('deletes the driver', async () => {
       await service.remove('1');
       expect(await repository.findById('1')).toBeNull();
+    });
+
+    it('rejects deleting a driver who is using a vehicle with 409', async () => {
+      await expect(service.remove('3')).rejects.toMatchObject({ status: 409 });
+      expect(await repository.findById('3')).not.toBeNull();
     });
 
     it('throws 404 when it does not exist', async () => {

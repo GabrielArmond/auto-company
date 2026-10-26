@@ -1,6 +1,7 @@
 import type { VehicleRepository } from '../../src/repositories/vehicleRepository';
 import { createVehicleService, type VehicleService } from '../../src/services/vehicleService';
 import { createInMemoryVehicleRepository } from '../support/inMemoryVehicleRepository';
+import { createInMemoryVehicleUsageRepository } from '../support/inMemoryVehicleUsageRepository';
 
 describe('vehicleService', () => {
   let repository: VehicleRepository;
@@ -12,7 +13,22 @@ describe('vehicleService', () => {
       { id: '2', plate: 'BBB2222', color: 'White', brand: 'Fiat' },
       { id: '3', plate: 'CCC3333', color: 'Black', brand: 'Ford' },
     ]);
-    service = createVehicleService(repository);
+    const vehicleUsageRepository = createInMemoryVehicleUsageRepository([
+      {
+        driver: { id: 'd1', name: 'Ana' },
+        vehicle: { id: '2', plate: 'BBB2222', color: 'White', brand: 'Fiat' },
+        reason: 'Finished trip',
+        startDate: new Date('2026-01-01T08:00:00Z'),
+        endDate: new Date('2026-01-01T10:00:00Z'),
+      },
+      {
+        driver: { id: 'd2', name: 'Bruno' },
+        vehicle: { id: '3', plate: 'CCC3333', color: 'Black', brand: 'Ford' },
+        reason: 'Ongoing trip',
+        startDate: new Date('2026-01-02T08:00:00Z'),
+      },
+    ]);
+    service = createVehicleService(repository, vehicleUsageRepository);
   });
 
   describe('list', () => {
@@ -108,6 +124,16 @@ describe('vehicleService', () => {
     it('deletes the vehicle', async () => {
       await service.remove('1');
       expect(await repository.findById('1')).toBeNull();
+    });
+
+    it('deletes a vehicle that only has finished usages', async () => {
+      await service.remove('2');
+      expect(await repository.findById('2')).toBeNull();
+    });
+
+    it('rejects deleting a vehicle in use with 409', async () => {
+      await expect(service.remove('3')).rejects.toMatchObject({ status: 409 });
+      expect(await repository.findById('3')).not.toBeNull();
     });
 
     it('throws 404 when it does not exist', async () => {

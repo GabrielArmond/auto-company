@@ -1,11 +1,15 @@
 import type { DriverFilters } from '../models/driver';
 import type { DriverRepository } from '../repositories/driverRepository';
+import type { VehicleUsageRepository } from '../repositories/vehicleUsageRepository';
 import { HttpError } from '../utils/HttpError';
 import { validateDriver } from '../validators/driverValidator';
 
 export type DriverService = ReturnType<typeof createDriverService>;
 
-export function createDriverService(driverRepository: DriverRepository) {
+export function createDriverService(
+  driverRepository: DriverRepository,
+  vehicleUsageRepository: VehicleUsageRepository,
+) {
   async function getById(id: string) {
     const driver = await driverRepository.findById(id);
     if (!driver) throw HttpError.notFound('Driver not found');
@@ -33,6 +37,9 @@ export function createDriverService(driverRepository: DriverRepository) {
 
     async remove(id: string) {
       await getById(id);
+      if (await vehicleUsageRepository.findActiveByDriver(id)) {
+        throw HttpError.conflict('Driver is using a vehicle and cannot be deleted');
+      }
       await driverRepository.delete(id);
     },
   };

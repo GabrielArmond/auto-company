@@ -21,8 +21,9 @@ service cloud.firestore {
     }
 
     match /vehicles/{vehicleId} {
-      allow read, delete: if isSignedIn();
+      allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidVehicle(request.resource.data);
+      allow delete: if isSignedIn() && !exists(lockPath('vehicle_' + vehicleId));
     }
 
     // nameSearch holds the word prefixes used for name filtering (at most one per character).
@@ -35,8 +36,73 @@ service cloud.firestore {
     }
 
     match /drivers/{driverId} {
-      allow read, delete: if isSignedIn();
+      allow read: if isSignedIn();
       allow create, update: if isSignedIn() && isValidDriver(request.resource.data);
+      allow delete: if isSignedIn() && !exists(lockPath('driver_' + driverId));
+    }
+
+    // activeUsages/{vehicle_<id> | driver_<id>} exist only while a usage is active,
+    // which enforces one active usage per vehicle and per driver.
+    function lockPath(lockId) {
+      return /databases/$(database)/documents/activeUsages/$(lockId);
+    }
+
+    function usagePath(usageId) {
+      return /databases/$(database)/documents/vehicleUsages/$(usageId);
+    }
+
+    function isValidUsage(data) {
+      return data.keys().hasOnly(['driver', 'vehicle', 'reason', 'startDate', 'endDate', 'createdAt', 'updatedAt'])
+        && data.driver is map && data.driver.keys().hasOnly(['id', 'name'])
+        && data.driver.id is string && data.driver.name is string
+        && data.vehicle is map && data.vehicle.keys().hasOnly(['id', 'plate', 'color', 'brand'])
+        && data.vehicle.id is string && data.vehicle.plate is string
+        && data.vehicle.color is string && data.vehicle.brand is string
+        && data.reason is string && data.reason.size() > 0 && data.reason.size() <= 500
+        && data.startDate is timestamp && data.startDate <= request.time + duration.value(5, 'm')
+        && (data.endDate == null || (data.endDate is timestamp && data.endDate >= data.startDate))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /vehicleUsages/{usageId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidUsage(request.resource.data)
+        && request.resource.data.endDate == null
+        && !exists(lockPath('vehicle_' + request.resource.data.vehicle.id))
+        && !exists(lockPath('driver_' + request.resource.data.driver.id))
+        && existsAfter(lockPath('vehicle_' + request.resource.data.vehicle.id))
+        && existsAfter(lockPath('driver_' + request.resource.data.driver.id));
+
+      allow update: if isSignedIn()
+        && isValidUsage(request.resource.data)
+        && resource.data.endDate == null
+        && request.resource.data.endDate != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['endDate', 'updatedAt'])
+        && !existsAfter(lockPath('vehicle_' + resource.data.vehicle.id))
+        && !existsAfter(lockPath('driver_' + resource.data.driver.id));
+
+      allow delete: if false;
+    }
+
+    match /activeUsages/{lockId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['usageId'])
+        && request.resource.data.usageId is string
+        && getAfter(usagePath(request.resource.data.usageId)).data.endDate == null
+        && lockId in [
+          'vehicle_' + getAfter(usagePath(request.resource.data.usageId)).data.vehicle.id,
+          'driver_' + getAfter(usagePath(request.resource.data.usageId)).data.driver.id
+        ];
+
+      allow delete: if isSignedIn()
+        && getAfter(usagePath(resource.data.usageId)).data.endDate != null;
+
+      allow update: if false;
     }
 
     // Any other collection is denied by default.

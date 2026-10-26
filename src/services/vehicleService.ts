@@ -1,11 +1,15 @@
 import type { VehicleFilters } from '../models/vehicle';
 import type { VehicleRepository } from '../repositories/vehicleRepository';
+import type { VehicleUsageRepository } from '../repositories/vehicleUsageRepository';
 import { HttpError } from '../utils/HttpError';
 import { validateVehicle } from '../validators/vehicleValidator';
 
 export type VehicleService = ReturnType<typeof createVehicleService>;
 
-export function createVehicleService(vehicleRepository: VehicleRepository) {
+export function createVehicleService(
+  vehicleRepository: VehicleRepository,
+  vehicleUsageRepository: VehicleUsageRepository,
+) {
   async function getById(id: string) {
     const vehicle = await vehicleRepository.findById(id);
     if (!vehicle) throw HttpError.notFound('Vehicle not found');
@@ -45,6 +49,9 @@ export function createVehicleService(vehicleRepository: VehicleRepository) {
 
     async remove(id: string) {
       await getById(id);
+      if (await vehicleUsageRepository.findActiveByVehicle(id)) {
+        throw HttpError.conflict('Vehicle is in use and cannot be deleted');
+      }
       await vehicleRepository.delete(id);
     },
   };
