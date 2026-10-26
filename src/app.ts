@@ -3,8 +3,10 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import swaggerUi from 'swagger-ui-express';
 
 import { config } from './config';
+import { openApiDocument } from './docs/openapi';
 import { errorHandler } from './middlewares/errorHandler';
 import { notFound } from './middlewares/notFound';
 import { apiRouter } from './routes';
@@ -18,6 +20,11 @@ export function createApp(services: Services) {
   app.use(cors({ origin: config.corsOrigin }));
   app.use(express.json());
   if (config.env !== 'test') app.use(morgan('dev'));
+
+  app.get('/api/docs.json', (_req, res) => {
+    res.json(openApiDocument);
+  });
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
   app.use('/api', apiRouter(services));
 

@@ -53,6 +53,7 @@ src/
   server.ts         # entry point: builds the container + listen
   container.ts      # wires Firestore repositories into the services
   config/           # environment variables and Firebase initialization
+  docs/             # OpenAPI document served by Swagger UI
   models/           # entity types
   validators/       # input validation/normalization
   services/         # business rules
@@ -67,6 +68,10 @@ tests/
 ```
 
 ## Endpoints
+
+Interactive documentation (Swagger UI) is available at **`/api/docs`** — e.g.
+http://localhost:3000/api/docs — where every endpoint can be tried out. The raw OpenAPI
+document is served at `/api/docs.json` (source: `src/docs/openapi.ts`).
 
 ### Vehicles
 
