@@ -16,10 +16,11 @@ cp .env.example .env   # preencha as variáveis FIREBASE_*
 npm run dev            # http://localhost:3000 (reinicia ao salvar)
 ```
 
-As credenciais vêm de uma conta de serviço: Console do Firebase → Configurações do projeto →
-Contas de serviço → Gerar nova chave privada. Do JSON baixado, copie `project_id`,
-`client_email` e `private_key` para `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` e
-`FIREBASE_PRIVATE_KEY`. **Não versione o `.env` nem o JSON.**
+Os valores vêm da configuração do app web: Console do Firebase → Configurações do projeto →
+Seus apps → App da Web → `firebaseConfig`. **Não versione o `.env`.**
+
+A conexão usa o SDK cliente do Firebase, então o acesso ao Firestore passa pelas
+**Security Rules** do projeto: elas precisam permitir leitura/escrita nas coleções usadas pela API.
 
 ## Scripts
 

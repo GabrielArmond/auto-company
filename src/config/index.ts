@@ -3,9 +3,11 @@ export const config = {
   port: Number(process.env.PORT) || 3000,
   corsOrigin: process.env.CORS_ORIGIN || '*',
   firebase: {
+    apiKey: process.env.FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
     projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    // No .env a chave fica em uma linha, com as quebras escritas como "\n".
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID,
   },
 };

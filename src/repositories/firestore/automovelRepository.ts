@@ -1,4 +1,17 @@
-import type { Firestore, Query } from 'firebase-admin/firestore';
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  updateDoc,
+  where,
+  type Firestore,
+  type QueryConstraint,
+} from 'firebase/firestore';
 import type { Automovel } from '../../models/automovel';
 import type { AutomovelRepository } from '../automovelRepository';
 import { toEntity } from './toEntity';
@@ -6,43 +19,43 @@ import { toEntity } from './toEntity';
 const COLLECTION = 'automoveis';
 
 export function createFirestoreAutomovelRepository(db: Firestore): AutomovelRepository {
-  const collection = db.collection(COLLECTION);
+  const automoveis = collection(db, COLLECTION);
 
   return {
     async list({ cor, marca } = {}) {
-      let query: Query = collection;
-      if (cor) query = query.where('cor', '==', cor);
-      if (marca) query = query.where('marca', '==', marca);
+      const filtros: QueryConstraint[] = [];
+      if (cor) filtros.push(where('cor', '==', cor));
+      if (marca) filtros.push(where('marca', '==', marca));
 
-      const snapshot = await query.get();
-      return snapshot.docs.map((doc) => toEntity<Automovel>(doc));
+      const snapshot = await getDocs(query(automoveis, ...filtros));
+      return snapshot.docs.map((d) => toEntity<Automovel>(d));
     },
 
     async findById(id) {
-      const doc = await collection.doc(id).get();
-      return doc.exists ? toEntity<Automovel>(doc) : null;
+      const snapshot = await getDoc(doc(automoveis, id));
+      return snapshot.exists() ? toEntity<Automovel>(snapshot) : null;
     },
 
     async findByPlaca(placa) {
-      const snapshot = await collection.where('placa', '==', placa).limit(1).get();
-      const doc = snapshot.docs[0];
-      return doc ? toEntity<Automovel>(doc) : null;
+      const snapshot = await getDocs(query(automoveis, where('placa', '==', placa), limit(1)));
+      const encontrado = snapshot.docs[0];
+      return encontrado ? toEntity<Automovel>(encontrado) : null;
     },
 
     async create(data) {
       const now = new Date();
-      const ref = await collection.add({ ...data, createdAt: now, updatedAt: now });
-      return toEntity<Automovel>(await ref.get());
+      const ref = await addDoc(automoveis, { ...data, createdAt: now, updatedAt: now });
+      return toEntity<Automovel>(await getDoc(ref));
     },
 
     async update(id, data) {
-      const ref = collection.doc(id);
-      await ref.update({ ...data, updatedAt: new Date() });
-      return toEntity<Automovel>(await ref.get());
+      const ref = doc(automoveis, id);
+      await updateDoc(ref, { ...data, updatedAt: new Date() });
+      return toEntity<Automovel>(await getDoc(ref));
     },
 
     async delete(id) {
-      await collection.doc(id).delete();
+      await deleteDoc(doc(automoveis, id));
     },
   };
 }
