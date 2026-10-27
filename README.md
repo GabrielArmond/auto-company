@@ -281,10 +281,18 @@ As respostas de erro seguem o formato:
 
 | Status | Quando                                                       |
 | ------ | ------------------------------------------------------------ |
-| 400    | Dados inválidos (os detalhes vêm em `details`)               |
+| 400    | Dados inválidos (os detalhes vêm em `details`) ou JSON malformado |
 | 401    | Chave de API ausente ou inválida                             |
 | 404    | Registro ou rota não encontrados                             |
 | 409    | Conflito: placa repetida, regra de utilização, exclusão bloqueada |
+| 413    | Corpo da requisição acima de 100 KB                          |
+| 500    | Erro inesperado                                              |
+
+Os ids aceitam apenas letras, números, `-` e `_`, com até 128 caracteres. Um id fora desse formato
+na URL retorna 404 (o registro não pode existir); em `driverId` ou `vehicleId` no corpo, retorna 400.
+
+Erros inesperados sempre respondem `{ "error": "Internal Server Error" }`, em qualquer ambiente. A
+mensagem original, que pode conter detalhes internos do banco, aparece apenas no log do servidor.
 
 ## Testes
 

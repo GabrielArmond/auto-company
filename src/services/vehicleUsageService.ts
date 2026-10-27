@@ -2,6 +2,7 @@ import type { DriverRepository } from '../repositories/driverRepository';
 import type { VehicleRepository } from '../repositories/vehicleRepository';
 import type { VehicleUsageRepository } from '../repositories/vehicleUsageRepository';
 import { HttpError } from '../utils/HttpError';
+import { isValidId } from '../utils/isValidId';
 import { validateUsageFinish, validateUsageStart } from '../validators/vehicleUsageValidator';
 
 export type VehicleUsageService = ReturnType<typeof createVehicleUsageService>;
@@ -20,7 +21,7 @@ export function createVehicleUsageService({
   now = () => new Date(),
 }: Dependencies) {
   async function getById(id: string) {
-    const usage = await vehicleUsageRepository.findById(id);
+    const usage = isValidId(id) ? await vehicleUsageRepository.findById(id) : null;
     if (!usage) throw HttpError.notFound('Vehicle usage not found');
     return usage;
   }

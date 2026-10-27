@@ -2,6 +2,7 @@ import type { VehicleFilters } from '../models/vehicle';
 import type { VehicleRepository } from '../repositories/vehicleRepository';
 import type { VehicleUsageRepository } from '../repositories/vehicleUsageRepository';
 import { HttpError } from '../utils/HttpError';
+import { isValidId } from '../utils/isValidId';
 import { normalizePlate, validateVehicle } from '../validators/vehicleValidator';
 
 export type VehicleService = ReturnType<typeof createVehicleService>;
@@ -11,7 +12,7 @@ export function createVehicleService(
   vehicleUsageRepository: VehicleUsageRepository,
 ) {
   async function getById(id: string) {
-    const vehicle = await vehicleRepository.findById(id);
+    const vehicle = isValidId(id) ? await vehicleRepository.findById(id) : null;
     if (!vehicle) throw HttpError.notFound('Vehicle not found');
     return vehicle;
   }

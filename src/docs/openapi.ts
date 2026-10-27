@@ -1,5 +1,6 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { API_KEY_HEADER } from '../middlewares/requireApiKey';
+import { ID_PATTERN } from '../utils/isValidId';
 
 const ref = (schema: string): OpenAPIV3.ReferenceObject => ({ $ref: `#/components/schemas/${schema}` });
 
@@ -20,11 +21,13 @@ const jsonBody = (schema: string): OpenAPIV3.RequestBodyObject => ({
   content: { 'application/json': { schema: ref(schema) } },
 });
 
+const idSchema: OpenAPIV3.SchemaObject = { type: 'string', pattern: ID_PATTERN };
+
 const idParam = (resource: string): OpenAPIV3.ParameterObject => ({
   name: 'id',
   in: 'path',
   required: true,
-  schema: { type: 'string' },
+  schema: idSchema,
   description: `${resource} id`,
 });
 
@@ -308,8 +311,8 @@ export const openApiDocument: OpenAPIV3.Document = {
         type: 'object',
         required: ['driverId', 'vehicleId', 'reason'],
         properties: {
-          driverId: { type: 'string', example: 'q8Zt1nV3kXyP' },
-          vehicleId: { type: 'string', example: 'b2Lm9cR4wQeT' },
+          driverId: { ...idSchema, example: 'q8Zt1nV3kXyP' },
+          vehicleId: { ...idSchema, example: 'b2Lm9cR4wQeT' },
           reason: { type: 'string', maxLength: 500, example: 'Client visit downtown' },
           startDate: {
             type: 'string',

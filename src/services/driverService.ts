@@ -2,6 +2,7 @@ import type { DriverFilters } from '../models/driver';
 import type { DriverRepository } from '../repositories/driverRepository';
 import type { VehicleUsageRepository } from '../repositories/vehicleUsageRepository';
 import { HttpError } from '../utils/HttpError';
+import { isValidId } from '../utils/isValidId';
 import { validateDriver } from '../validators/driverValidator';
 
 export type DriverService = ReturnType<typeof createDriverService>;
@@ -11,7 +12,7 @@ export function createDriverService(
   vehicleUsageRepository: VehicleUsageRepository,
 ) {
   async function getById(id: string) {
-    const driver = await driverRepository.findById(id);
+    const driver = isValidId(id) ? await driverRepository.findById(id) : null;
     if (!driver) throw HttpError.notFound('Driver not found');
     return driver;
   }

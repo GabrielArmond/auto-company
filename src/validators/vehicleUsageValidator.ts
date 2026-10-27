@@ -1,5 +1,5 @@
 import { HttpError } from '../utils/HttpError';
-import { asRecord, requiredString } from './common';
+import { asRecord, requiredId, requiredString } from './common';
 
 export const MAX_REASON_LENGTH = 500;
 
@@ -29,8 +29,8 @@ export function validateUsageStart(body: unknown, now: Date): VehicleUsageStart 
   const data = asRecord(body);
   const errors: string[] = [];
 
-  const driverId = requiredString(data.driverId, 'driverId', errors);
-  const vehicleId = requiredString(data.vehicleId, 'vehicleId', errors);
+  const driverId = requiredId(data.driverId, 'driverId', errors);
+  const vehicleId = requiredId(data.vehicleId, 'vehicleId', errors);
 
   const reason = requiredString(data.reason, 'reason', errors);
   if (reason.length > MAX_REASON_LENGTH) {
