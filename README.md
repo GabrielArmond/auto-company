@@ -133,7 +133,7 @@ dados do JSON. Depois inicie com `npm run dev`.
 | ------------------------- | ------------------------------------------------------------------------------ |
 | `NODE_ENV`                | `development` ou `production`                                                  |
 | `PORT`                    | Porta HTTP da API (padrão `3000`)                                              |
-| `CORS_ORIGIN`             | Origens liberadas no CORS (padrão `*`)                                         |
+| `CORS_ORIGIN`             | Origem liberada no CORS (padrão `*`); veja [CORS](#cors)                       |
 | `API_KEYS`                | Chaves de acesso à API, separadas por vírgula (mínimo de 32 caracteres cada)   |
 | `RATE_LIMIT_WINDOW_MS`    | Janela do limite de requisições, em milissegundos (padrão `60000`)             |
 | `RATE_LIMIT_MAX`          | Requisições permitidas por IP em cada janela (padrão `100`)                    |
@@ -203,6 +203,8 @@ confirme. Depois abra um endpoint, clique em **Try it out**, preencha os dados e
 
 O documento OpenAPI bruto fica em http://localhost:3000/api/docs.json (pode ser importado no
 Postman ou Insomnia).
+
+A documentação é pública de propósito; veja [Swagger em produção](#swagger-em-produção).
 
 ### Exemplo de fluxo completo
 
@@ -342,6 +344,61 @@ na URL retorna 404 (o registro não pode existir); em `driverId` ou `vehicleId` 
 
 Erros inesperados sempre respondem `{ "error": "Internal Server Error" }`, em qualquer ambiente. A
 mensagem original, que pode conter detalhes internos do banco, aparece apenas no log do servidor.
+
+## Segurança em produção
+
+A configuração padrão foi pensada para rodar localmente sem atrito. Antes de publicar a API,
+revise os pontos abaixo.
+
+| Item                     | O que fazer                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `API_KEYS`               | Trocar a chave de demonstração por chaves aleatórias (veja Variáveis de ambiente) |
+| `NODE_ENV`               | Definir `production`                                                           |
+| `CORS_ORIGIN`            | Restringir à origem do front-end, se houver (veja [CORS](#cors))               |
+| `TRUST_PROXY`            | Definir a quantidade de proxies, se houver (veja Limite de requisições)        |
+| HTTPS                    | Servir a API apenas por HTTPS, já que a chave viaja no cabeçalho `X-API-Key`. O TLS fica a cargo da plataforma ou do proxy reverso |
+| Conta de serviço         | Guardar o JSON fora do repositório e revogar a chave se ela vazar              |
+| Swagger                  | Decidir se continua público (veja [Swagger em produção](#swagger-em-produção)) |
+
+### CORS
+
+O CORS controla quais sites podem chamar a API **a partir do navegador** dos usuários. Ele não
+protege a API de chamadas feitas por outros servidores, `curl` ou Postman; quem faz isso é a chave
+de API.
+
+O padrão `CORS_ORIGIN=*` libera qualquer site. O risco é baixo nesta API, porque ela não usa cookies
+nem sessões: um site malicioso não consegue aproveitar credenciais guardadas no navegador da
+vítima, e sem a chave de API as requisições recebem 401. Ainda assim, em produção é recomendado
+restringir à origem do front-end que vai consumir a API, para reduzir a superfície de ataque:
+
+```bash
+CORS_ORIGIN=https://frota.minhaempresa.com.br
+```
+
+- Informe a origem completa (protocolo, domínio e porta, se não for a padrão), sem `/` no final.
+- Hoje a variável aceita **uma única origem**. Liberar várias exigiria passar uma lista ao
+  middleware `cors` em `src/app.ts`.
+- Se a API só for chamada por outros servidores, não há front-end para liberar; qualquer origem
+  específica serve, já que o CORS não se aplica a essas chamadas.
+
+### Swagger em produção
+
+`/api/docs` (Swagger UI) e `/api/docs.json` (documento OpenAPI) ficam públicos e fora do limite de
+requisições. É uma escolha consciente: a documentação é a forma principal de testar a API.
+
+O que ela expõe é o mapa da API: rotas, campos e formatos de resposta. Ela **não** expõe dados nem
+permite executar nada sem a chave, porque o botão **Execute** faz requisições normais à API, que
+exigem o `X-API-Key` e respondem 401 sem ele. A chave informada em **Authorize** fica salva apenas
+no navegador de quem a digitou.
+
+Esconder a documentação não torna a API mais segura, só mais difícil de explorar; a proteção real
+está na chave de API, no limite de requisições e nas validações. Se ainda assim a empresa preferir
+não divulgar o mapa da API, as opções são:
+
+- **Remover a documentação em produção**: registrar as rotas `/api/docs` e `/api/docs.json` em
+  `src/app.ts` só quando `NODE_ENV` não for `production`.
+- **Restringir na infraestrutura**: liberar `/api/docs` apenas para a rede interna ou VPN no proxy
+  reverso ou no firewall da plataforma.
 
 ## Testes
 
