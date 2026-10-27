@@ -1,5 +1,6 @@
 import type { Vehicle, VehicleInput } from '../../models/vehicle';
 import type { VehicleRepository } from '../vehicleRepository';
+import { HttpError } from '../../utils/HttpError';
 import { normalizeSearchTerm } from '../../utils/normalizeSearchTerm';
 import { compareIds, toPage } from '../../utils/pagination';
 
@@ -15,6 +16,12 @@ export function createInMemoryVehicleRepository(seed: Seed[] = []): VehicleRepos
     const vehicle = { id, ...data, createdAt: createdAt ?? now, updatedAt: now };
     docs.set(id, vehicle);
     return vehicle;
+  }
+
+  function ensurePlateAvailable(plate: string, vehicleId?: string) {
+    if ([...docs.values()].some((v) => v.plate === plate && v.id !== vehicleId)) {
+      throw HttpError.conflict(`A vehicle with plate ${plate} already exists`);
+    }
   }
 
   for (const { id, ...data } of seed) save(id ?? String(nextId++), data);
@@ -41,11 +48,16 @@ export function createInMemoryVehicleRepository(seed: Seed[] = []): VehicleRepos
     },
 
     async create(data) {
+      ensurePlateAvailable(data.plate);
       return save(String(nextId++), data);
     },
 
     async update(id, data) {
-      return save(id, data, docs.get(id)?.createdAt);
+      const current = docs.get(id);
+      if (!current) throw HttpError.notFound('Vehicle not found');
+
+      ensurePlateAvailable(data.plate, id);
+      return save(id, data, current.createdAt);
     },
 
     async delete(id) {

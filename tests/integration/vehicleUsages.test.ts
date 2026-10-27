@@ -99,6 +99,29 @@ describe('API /api/vehicle-usages', () => {
     expect(res.body.error).toBe('Vehicle not found');
   });
 
+  it('rejects a backdated usage that overlaps the vehicle history with 409', async () => {
+    const first = await start({ driverId: 'd1', vehicleId: 'v1', reason: 'Trip', startDate: '2026-01-01T08:00:00Z' });
+    await api.patch(`/api/vehicle-usages/${first.body.id}/finish`).send({ endDate: '2026-01-01T12:00:00Z' });
+
+    const overlapping = await start({ driverId: 'd2', vehicleId: 'v1', reason: 'Trip', startDate: '2026-01-01T10:00:00Z' });
+    expect(overlapping.status).toBe(409);
+    expect(overlapping.body.error).toBe(
+      'Vehicle AAA1111 was in use until 2026-01-01T12:00:00.000Z; the usage cannot start before that',
+    );
+
+    const after = await start({ driverId: 'd2', vehicleId: 'v1', reason: 'Trip', startDate: '2026-01-01T12:00:00Z' });
+    expect(after.status).toBe(201);
+  });
+
+  it('rejects a backdated usage that overlaps the driver history with 409', async () => {
+    const first = await start({ driverId: 'd1', vehicleId: 'v1', reason: 'Trip', startDate: '2026-01-01T08:00:00Z' });
+    await api.patch(`/api/vehicle-usages/${first.body.id}/finish`).send({ endDate: '2026-01-01T12:00:00Z' });
+
+    const overlapping = await start({ driverId: 'd1', vehicleId: 'v2', reason: 'Trip', startDate: '2026-01-01T07:00:00Z' });
+    expect(overlapping.status).toBe(409);
+    expect(overlapping.body.error).toMatch(/^Driver Ana Lima was using a vehicle until/);
+  });
+
   it('returns 404 when finishing an unknown usage', async () => {
     expect((await api.patch('/api/vehicle-usages/nope/finish')).status).toBe(404);
   });

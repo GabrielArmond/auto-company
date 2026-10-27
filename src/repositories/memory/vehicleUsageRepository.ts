@@ -1,6 +1,7 @@
 import type { VehicleUsage, VehicleUsageInput } from '../../models/vehicleUsage';
 import { HttpError } from '../../utils/HttpError';
 import { compareIds, toPage } from '../../utils/pagination';
+import { ensureStartsAfterHistory } from '../usageHistory';
 import type { VehicleUsageRepository } from '../vehicleUsageRepository';
 
 type Seed = VehicleUsageInput & { id?: string; endDate?: Date | null };
@@ -26,6 +27,11 @@ export function createInMemoryVehicleUsageRepository(seed: Seed[] = []): Vehicle
 
   const findActive = (predicate: (usage: VehicleUsage) => boolean) =>
     [...docs.values()].find((usage) => !usage.endDate && predicate(usage)) ?? null;
+
+  function lastEndDate(predicate: (usage: VehicleUsage) => boolean): Date | null {
+    const ends = [...docs.values()].filter((usage) => usage.endDate && predicate(usage)).map((u) => u.endDate!);
+    return ends.length ? new Date(ends.sort().at(-1)!) : null;
+  }
 
   for (const usage of seed) insert(usage);
 
@@ -60,6 +66,10 @@ export function createInMemoryVehicleUsageRepository(seed: Seed[] = []): Vehicle
       if (findActive((usage) => usage.driver.id === data.driver.id)) {
         throw HttpError.conflict(`Driver ${data.driver.name} is already using another vehicle`);
       }
+      ensureStartsAfterHistory(data, {
+        vehicle: lastEndDate((usage) => usage.vehicle.id === data.vehicle.id),
+        driver: lastEndDate((usage) => usage.driver.id === data.driver.id),
+      });
       return insert(data);
     },
 

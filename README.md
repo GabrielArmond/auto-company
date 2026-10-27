@@ -279,7 +279,8 @@ utilizações, da mais recente para a mais antiga. Um `limit` ou `cursor` invál
 
 - **Placa** (`plate`): aceita o padrão antigo (`ABC1234`) e o Mercosul (`ABC1D23`). Hífens,
   espaços e letras minúsculas são normalizados (`abc-1d23` → `ABC1D23`). Não pode haver duas
-  placas iguais (409).
+  placas iguais (409), nem mesmo em cadastros simultâneos.
+- **Cor e marca** (`color`, `brand`): obrigatórias, até 50 caracteres cada.
 - **Busca pela placa**: a placa informada na URL passa pela mesma normalização, então
   `/api/vehicles/plate/abc-1d23` encontra o veículo `ABC1D23`. Retorna 404 se não houver veículo
   com a placa.
@@ -317,6 +318,9 @@ Regras:
 - `startDate` e `endDate` são opcionais (padrão: data/hora atual), não podem estar no futuro, e o
   término não pode ser anterior ao início (400).
 - Uma utilização só pode ser finalizada uma vez (409).
+- Uma utilização retroativa não pode se sobrepor ao histórico: o `startDate` não pode ser anterior
+  ao término da última utilização do mesmo automóvel nem do mesmo motorista (409). Começar
+  exatamente no horário em que a anterior terminou é permitido.
 - Automóveis e motoristas com utilização em andamento não podem ser excluídos (409).
 - Cada utilização guarda uma cópia dos dados do motorista e do automóvel no momento do início,
   então o histórico continua correto mesmo que eles sejam editados ou excluídos depois.
@@ -460,15 +464,29 @@ tests/
 | `drivers`       | Motoristas                                                               |
 | `vehicleUsages` | Utilizações                                                              |
 | `activeUsages`  | Travas das utilizações em andamento (`vehicle_<id>` e `driver_<id>`)     |
+| `usageHistory`  | Fim da última utilização de cada automóvel e motorista (`lastEndDate`)   |
+| `vehiclePlates` | Trava de cada placa cadastrada (id = placa, com o `vehicleId` dono)      |
 
 Alguns documentos guardam campos auxiliares de busca que não aparecem nas respostas da API:
 `colorLower` e `brandLower` (filtros de automóveis sem diferenciar maiúsculas) e `nameSearch`
 (prefixos das palavras do nome, para o filtro de motoristas).
 
-As regras de utilização são garantidas em duas camadas. A API verifica antes de gravar e responde
-com uma mensagem clara. O Firestore garante o mesmo de forma atômica: iniciar uma utilização cria
-as travas em `activeUsages` dentro de uma transação, que falha se alguma delas já existir, e
-finalizá-la as remove.
+As regras de negócio são garantidas em duas camadas. A API verifica antes de gravar e responde
+com uma mensagem clara. O Firestore garante o mesmo de forma atômica, com transações, então duas
+requisições simultâneas nunca passam juntas pela verificação:
+
+- **Uma utilização por vez**: iniciar uma utilização cria as travas em `activeUsages` dentro de uma
+  transação, que falha se alguma delas já existir; finalizá-la as remove.
+- **Sem sobreposição no histórico**: ao finalizar uma utilização, o término é gravado em
+  `usageHistory` para o automóvel e para o motorista. Ao iniciar outra, a mesma transação confere
+  que o `startDate` não é anterior a esses términos. Guardar só o último término evita reler todo
+  o histórico a cada nova utilização.
+- **Placa única**: cadastrar um automóvel ou trocar sua placa cria a trava `vehiclePlates/<placa>` na
+  mesma transação; trocar a placa ou excluir o automóvel libera a anterior. A transação também
+  consulta a coleção `vehicles`, o que cobre automóveis cadastrados antes de as travas existirem.
+
+> Utilizações finalizadas antes da criação de `usageHistory` não têm o término registrado; a
+> verificação de sobreposição vale a partir das próximas finalizações.
 
 Somente a API acessa o banco. Ela usa o Firebase Admin SDK com a conta de serviço, que ignora as
 regras de segurança, enquanto o [`firestore.rules`](firestore.rules) nega qualquer outro acesso.

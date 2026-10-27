@@ -1,10 +1,10 @@
 import { createInMemoryVehicleUsageRepository } from '../../src/repositories/memory/vehicleUsageRepository';
 
-const usage = (vehicleId: string, driverId: string) => ({
+const usage = (vehicleId: string, driverId: string, startDate = '2026-01-01T08:00:00Z') => ({
   vehicle: { id: vehicleId, plate: `AAA${vehicleId}111`, color: 'Black', brand: 'Fiat' },
   driver: { id: driverId, name: `Driver ${driverId}` },
   reason: 'Trip',
-  startDate: new Date('2026-01-01T08:00:00Z'),
+  startDate: new Date(startDate),
 });
 
 describe('in-memory vehicleUsageRepository', () => {
@@ -20,12 +20,42 @@ describe('in-memory vehicleUsageRepository', () => {
     await expect(repository.create(usage('2', 'a'))).rejects.toMatchObject({ status: 409 });
   });
 
-  it('allows a new usage after the previous one is finished', async () => {
+  it('allows a new usage starting when the previous one ended', async () => {
     const repository = createInMemoryVehicleUsageRepository();
     const first = await repository.create(usage('1', 'a'));
     await repository.finish(first.id, new Date('2026-01-01T09:00:00Z'));
 
-    await expect(repository.create(usage('1', 'a'))).resolves.toMatchObject({ endDate: null });
+    await expect(repository.create(usage('1', 'a', '2026-01-01T09:00:00Z'))).resolves.toMatchObject({ endDate: null });
+  });
+
+  it('rejects a usage of the vehicle starting before its last usage ended', async () => {
+    const repository = createInMemoryVehicleUsageRepository([
+      { ...usage('1', 'a'), endDate: new Date('2026-01-01T10:00:00Z') },
+    ]);
+
+    await expect(repository.create(usage('1', 'b', '2026-01-01T09:00:00Z'))).rejects.toMatchObject({
+      status: 409,
+      message: 'Vehicle AAA1111 was in use until 2026-01-01T10:00:00.000Z; the usage cannot start before that',
+    });
+  });
+
+  it('rejects a usage by the driver starting before their last usage ended', async () => {
+    const repository = createInMemoryVehicleUsageRepository([
+      { ...usage('1', 'a'), endDate: new Date('2026-01-01T10:00:00Z') },
+    ]);
+
+    await expect(repository.create(usage('2', 'a', '2026-01-01T07:00:00Z'))).rejects.toMatchObject({
+      status: 409,
+      message: 'Driver Driver a was using a vehicle until 2026-01-01T10:00:00.000Z; the usage cannot start before that',
+    });
+  });
+
+  it('only compares with the history of the same vehicle and driver', async () => {
+    const repository = createInMemoryVehicleUsageRepository([
+      { ...usage('1', 'a'), endDate: new Date('2026-01-01T10:00:00Z') },
+    ]);
+
+    await expect(repository.create(usage('2', 'b', '2026-01-01T09:00:00Z'))).resolves.toMatchObject({ endDate: null });
   });
 
   it('rejects finishing a missing or already finished usage', async () => {

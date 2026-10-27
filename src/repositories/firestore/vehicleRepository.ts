@@ -1,11 +1,19 @@
-import { FieldPath, type DocumentSnapshot, type Firestore, type Query } from 'firebase-admin/firestore';
+import {
+  FieldPath,
+  type DocumentSnapshot,
+  type Firestore,
+  type Query,
+  type Transaction,
+} from 'firebase-admin/firestore';
 import type { Vehicle, VehicleInput } from '../../models/vehicle';
+import { HttpError } from '../../utils/HttpError';
 import { normalizeSearchTerm } from '../../utils/normalizeSearchTerm';
 import { toPage } from '../../utils/pagination';
 import type { VehicleRepository } from '../vehicleRepository';
 import { toEntity } from './toEntity';
 
 const COLLECTION = 'vehicles';
+const PLATES_COLLECTION = 'vehiclePlates';
 
 // Lowercase copies used only for case-insensitive filtering; never exposed by the API.
 interface SearchFields {
@@ -31,6 +39,24 @@ function toVehicle(snapshot: DocumentSnapshot): Vehicle {
 
 export function createFirestoreVehicleRepository(db: Firestore): VehicleRepository {
   const vehicles = db.collection(COLLECTION);
+  const plates = db.collection(PLATES_COLLECTION);
+
+  const plateLock = (plate: string) => plates.doc(plate);
+
+  // vehiclePlates/{plate} is created in the same transaction as the vehicle, so two concurrent requests
+  // cannot register the same plate. The query also covers vehicles saved before the locks existed.
+  async function ensurePlateAvailable(tx: Transaction, plate: string, vehicleId?: string) {
+    const [lock, samePlate] = await Promise.all([
+      tx.get(plateLock(plate)),
+      tx.get(vehicles.where('plate', '==', plate).limit(2)),
+    ]);
+
+    const takenByLock = lock.exists && lock.get('vehicleId') !== vehicleId;
+    const takenByVehicle = samePlate.docs.some((doc) => doc.id !== vehicleId);
+    if (takenByLock || takenByVehicle) {
+      throw HttpError.conflict(`A vehicle with plate ${plate} already exists`);
+    }
+  }
 
   return {
     async list({ color, brand }, { limit, cursor }) {
@@ -55,19 +81,52 @@ export function createFirestoreVehicleRepository(db: Firestore): VehicleReposito
     },
 
     async create(data) {
+      const ref = vehicles.doc();
       const now = new Date();
-      const ref = await vehicles.add({ ...toDocument(data), createdAt: now, updatedAt: now });
+
+      await db.runTransaction(async (tx) => {
+        await ensurePlateAvailable(tx, data.plate);
+
+        tx.set(ref, { ...toDocument(data), createdAt: now, updatedAt: now });
+        tx.set(plateLock(data.plate), { vehicleId: ref.id });
+      });
+
       return toVehicle(await ref.get());
     },
 
     async update(id, data) {
       const ref = vehicles.doc(id);
-      await ref.update({ ...toDocument(data), updatedAt: new Date() });
+
+      await db.runTransaction(async (tx) => {
+        const snapshot = await tx.get(ref);
+        if (!snapshot.exists) throw HttpError.notFound('Vehicle not found');
+
+        const currentPlate: string = snapshot.get('plate');
+        if (currentPlate !== data.plate) {
+          await ensurePlateAvailable(tx, data.plate, id);
+          tx.delete(plateLock(currentPlate));
+        }
+
+        tx.update(ref, { ...toDocument(data), updatedAt: new Date() });
+        tx.set(plateLock(data.plate), { vehicleId: id });
+      });
+
       return toVehicle(await ref.get());
     },
 
     async delete(id) {
-      await vehicles.doc(id).delete();
+      const ref = vehicles.doc(id);
+
+      await db.runTransaction(async (tx) => {
+        const snapshot = await tx.get(ref);
+        if (!snapshot.exists) return;
+
+        const lock = plateLock(snapshot.get('plate'));
+        const lockSnapshot = await tx.get(lock);
+
+        tx.delete(ref);
+        if (lockSnapshot.get('vehicleId') === id) tx.delete(lock);
+      });
     },
   };
 }

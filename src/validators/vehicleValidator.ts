@@ -2,6 +2,9 @@ import type { VehicleInput } from '../models/vehicle';
 import { HttpError } from '../utils/HttpError';
 import { asRecord, requiredString } from './common';
 
+export const MAX_COLOR_LENGTH = 50;
+export const MAX_BRAND_LENGTH = 50;
+
 // Accepts the legacy Brazilian format (ABC1234) and the Mercosur format (ABC1D23).
 const PLATE_REGEX = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
 
@@ -24,7 +27,14 @@ export function validateVehicle(body: unknown): VehicleInput {
   }
 
   const color = requiredString(data.color, 'color', errors);
+  if (color.length > MAX_COLOR_LENGTH) {
+    errors.push(`The "color" field must have at most ${MAX_COLOR_LENGTH} characters`);
+  }
+
   const brand = requiredString(data.brand, 'brand', errors);
+  if (brand.length > MAX_BRAND_LENGTH) {
+    errors.push(`The "brand" field must have at most ${MAX_BRAND_LENGTH} characters`);
+  }
 
   if (errors.length) throw HttpError.badRequest('Invalid data', errors);
 

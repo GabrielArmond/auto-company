@@ -1,19 +1,26 @@
-import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
+import type { DocumentReference, DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 import type { VehicleUsage } from '../../models/vehicleUsage';
 import { HttpError } from '../../utils/HttpError';
 import { toPage } from '../../utils/pagination';
+import { ensureStartsAfterHistory } from '../usageHistory';
 import type { VehicleUsageRepository } from '../vehicleUsageRepository';
 import { toEntity } from './toEntity';
 
 const COLLECTION = 'vehicleUsages';
 const LOCKS_COLLECTION = 'activeUsages';
+const HISTORY_COLLECTION = 'usageHistory';
 
 export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsageRepository {
   const usages = db.collection(COLLECTION);
   const locks = db.collection(LOCKS_COLLECTION);
+  const history = db.collection(HISTORY_COLLECTION);
 
   const vehicleLock = (vehicleId: string) => locks.doc(`vehicle_${vehicleId}`);
   const driverLock = (driverId: string) => locks.doc(`driver_${driverId}`);
+  const vehicleHistory = (vehicleId: string) => history.doc(`vehicle_${vehicleId}`);
+  const driverHistory = (driverId: string) => history.doc(`driver_${driverId}`);
+
+  const lastEndDate = (snapshot: DocumentSnapshot): Date | null => snapshot.get('lastEndDate')?.toDate() ?? null;
 
   async function findById(id: string) {
     const snapshot = await usages.doc(id).get();
@@ -52,12 +59,24 @@ export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsa
         const vehicleLockRef = vehicleLock(data.vehicle.id);
         const driverLockRef = driverLock(data.driver.id);
 
-        if ((await tx.get(vehicleLockRef)).exists) {
+        const [vehicleLockSnapshot, driverLockSnapshot, vehicleHistorySnapshot, driverHistorySnapshot] =
+          await Promise.all([
+            tx.get(vehicleLockRef),
+            tx.get(driverLockRef),
+            tx.get(vehicleHistory(data.vehicle.id)),
+            tx.get(driverHistory(data.driver.id)),
+          ]);
+
+        if (vehicleLockSnapshot.exists) {
           throw HttpError.conflict(`Vehicle ${data.vehicle.plate} is already in use`);
         }
-        if ((await tx.get(driverLockRef)).exists) {
+        if (driverLockSnapshot.exists) {
           throw HttpError.conflict(`Driver ${data.driver.name} is already using another vehicle`);
         }
+        ensureStartsAfterHistory(data, {
+          vehicle: lastEndDate(vehicleHistorySnapshot),
+          driver: lastEndDate(driverHistorySnapshot),
+        });
 
         tx.set(ref, { ...data, endDate: null, createdAt: now, updatedAt: now });
         tx.set(vehicleLockRef, { usageId: ref.id });
@@ -88,6 +107,8 @@ export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsa
         tx.update(ref, { endDate, updatedAt: now });
         tx.delete(vehicleLock(current.vehicle.id));
         tx.delete(driverLock(current.driver.id));
+        tx.set(vehicleHistory(current.vehicle.id), { lastEndDate: endDate });
+        tx.set(driverHistory(current.driver.id), { lastEndDate: endDate });
 
         return current;
       });

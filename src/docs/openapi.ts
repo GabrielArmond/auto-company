@@ -2,6 +2,7 @@ import type { OpenAPIV3 } from 'openapi-types';
 import { API_KEY_HEADER } from '../middlewares/requireApiKey';
 import { ID_PATTERN } from '../utils/isValidId';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../validators/paginationValidator';
+import { MAX_BRAND_LENGTH, MAX_COLOR_LENGTH } from '../validators/vehicleValidator';
 
 const ref = (schema: string): OpenAPIV3.ReferenceObject => ({ $ref: `#/components/schemas/${schema}` });
 
@@ -294,7 +295,10 @@ export const openApiDocument: OpenAPIV3.Document = {
           400: errorResponse('Invalid data'),
           401: unauthorized,
           404: errorResponse('Vehicle or driver not found'),
-          409: errorResponse('Vehicle already in use, or driver already using another vehicle'),
+          409: errorResponse(
+            'Vehicle already in use, driver already using another vehicle, ' +
+              'or start date before the end of their last usage',
+          ),
           429: tooManyRequests,
         },
       },
@@ -346,8 +350,8 @@ export const openApiDocument: OpenAPIV3.Document = {
             description: 'Legacy (ABC1234) or Mercosur (ABC1D23) format; hyphens/spaces and case are normalized.',
             example: 'ABC1D23',
           },
-          color: { type: 'string', example: 'Black' },
-          brand: { type: 'string', example: 'Fiat' },
+          color: { type: 'string', maxLength: MAX_COLOR_LENGTH, example: 'Black' },
+          brand: { type: 'string', maxLength: MAX_BRAND_LENGTH, example: 'Fiat' },
         },
       },
       Vehicle: entitySchema('VehicleInput'),
@@ -369,7 +373,9 @@ export const openApiDocument: OpenAPIV3.Document = {
           startDate: {
             type: 'string',
             format: 'date-time',
-            description: 'Defaults to now; cannot be in the future.',
+            description:
+              'Defaults to now; cannot be in the future nor before the end of the last usage ' +
+              'of the same vehicle or driver.',
           },
         },
       },
