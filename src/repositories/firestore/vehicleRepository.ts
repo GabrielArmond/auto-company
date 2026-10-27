@@ -1,18 +1,4 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-  updateDoc,
-  where,
-  type DocumentSnapshot,
-  type Firestore,
-  type QueryConstraint,
-} from 'firebase/firestore';
+import type { DocumentSnapshot, Firestore, Query } from 'firebase-admin/firestore';
 import type { Vehicle, VehicleInput } from '../../models/vehicle';
 import { normalizeSearchTerm } from '../../utils/normalizeSearchTerm';
 import type { VehicleRepository } from '../vehicleRepository';
@@ -40,43 +26,43 @@ function toVehicle(snapshot: DocumentSnapshot): Vehicle {
 }
 
 export function createFirestoreVehicleRepository(db: Firestore): VehicleRepository {
-  const vehicles = collection(db, COLLECTION);
+  const vehicles = db.collection(COLLECTION);
 
   return {
     async list({ color, brand } = {}) {
-      const constraints: QueryConstraint[] = [];
-      if (color) constraints.push(where('colorLower', '==', normalizeSearchTerm(color)));
-      if (brand) constraints.push(where('brandLower', '==', normalizeSearchTerm(brand)));
+      let query: Query = vehicles;
+      if (color) query = query.where('colorLower', '==', normalizeSearchTerm(color));
+      if (brand) query = query.where('brandLower', '==', normalizeSearchTerm(brand));
 
-      const snapshot = await getDocs(query(vehicles, ...constraints));
+      const snapshot = await query.get();
       return snapshot.docs.map(toVehicle);
     },
 
     async findById(id) {
-      const snapshot = await getDoc(doc(vehicles, id));
-      return snapshot.exists() ? toVehicle(snapshot) : null;
+      const snapshot = await vehicles.doc(id).get();
+      return snapshot.exists ? toVehicle(snapshot) : null;
     },
 
     async findByPlate(plate) {
-      const snapshot = await getDocs(query(vehicles, where('plate', '==', plate), limit(1)));
+      const snapshot = await vehicles.where('plate', '==', plate).limit(1).get();
       const found = snapshot.docs[0];
       return found ? toVehicle(found) : null;
     },
 
     async create(data) {
       const now = new Date();
-      const ref = await addDoc(vehicles, { ...toDocument(data), createdAt: now, updatedAt: now });
-      return toVehicle(await getDoc(ref));
+      const ref = await vehicles.add({ ...toDocument(data), createdAt: now, updatedAt: now });
+      return toVehicle(await ref.get());
     },
 
     async update(id, data) {
-      const ref = doc(vehicles, id);
-      await updateDoc(ref, { ...toDocument(data), updatedAt: new Date() });
-      return toVehicle(await getDoc(ref));
+      const ref = vehicles.doc(id);
+      await ref.update({ ...toDocument(data), updatedAt: new Date() });
+      return toVehicle(await ref.get());
     },
 
     async delete(id) {
-      await deleteDoc(doc(vehicles, id));
+      await vehicles.doc(id).delete();
     },
   };
 }

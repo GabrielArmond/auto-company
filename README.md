@@ -24,7 +24,7 @@ E garante as regras de negócio:
 
 - [Node.js](https://nodejs.org/) + [TypeScript](https://www.typescriptlang.org/)
 - [Express 5](https://expressjs.com/) como framework HTTP
-- [Firebase](https://firebase.google.com/) (Cloud Firestore + Authentication) como banco de dados
+- [Firebase](https://firebase.google.com/) (Cloud Firestore, via Firebase Admin SDK) como banco de dados
 - [Swagger UI](https://swagger.io/tools/swagger-ui/) para documentação interativa
 - [Jest](https://jestjs.io/) + [Supertest](https://github.com/ladjs/supertest) para testes
 - [ESLint](https://eslint.org/) com `typescript-eslint`
@@ -43,14 +43,15 @@ E garante as regras de negócio:
 2. **Criar o banco de dados**: no menu lateral, vá em **Firestore Database** → **Criar banco de
    dados**. Escolha a localização (por exemplo, `southamerica-east1`) e inicie em **modo de
    produção** — as regras de acesso serão publicadas no passo 5.
-3. **Registrar um app da Web**: em **Configurações do projeto** (ícone de engrenagem) → **Geral** →
-   **Seus apps**, clique no ícone **`</>`** (Web), dê um nome e registre. Copie os valores do objeto
-   `firebaseConfig` exibido; eles serão usados no `.env`.
-4. **Ativar o login anônimo**: em **Authentication** → **Método de login**, ative o provedor
-   **Anônimo**. A API faz login anônimo ao iniciar, e as regras do Firestore só liberam acesso a
-   clientes autenticados.
-5. **Publicar as regras de segurança**: em **Firestore Database** → **Regras**, substitua o conteúdo
-   pelo do arquivo [`firestore.rules`](firestore.rules) e clique em **Publicar**. Como alternativa,
+3. **Gerar a chave da conta de serviço**: em **Configurações do projeto** (ícone de engrenagem) →
+   **Contas de serviço**, clique em **Gerar nova chave privada**. Um arquivo JSON será baixado; os
+   campos `project_id`, `client_email` e `private_key` dele serão usados no `.env`.
+
+   > Essa chave dá acesso total ao banco. Guarde-a em local seguro, nunca a versione e, se ela
+   > vazar, revogue-a na mesma tela.
+4. **Publicar as regras de segurança**: em **Firestore Database** → **Regras**, substitua o conteúdo
+   pelo do arquivo [`firestore.rules`](firestore.rules) e clique em **Publicar**. Elas negam todo
+   acesso direto ao banco; só a API, que usa o Admin SDK, consegue ler e gravar. Como alternativa,
    use a Firebase CLI:
 
    ```bash
@@ -74,19 +75,26 @@ Crie o arquivo `.env` a partir do exemplo:
 cp .env.example .env
 ```
 
-Preencha com os valores do `firebaseConfig` copiados no passo 1.3:
+Preencha as variáveis:
 
-| Variável                       | Valor no `firebaseConfig` | Descrição                              |
-| ------------------------------ | ------------------------- | -------------------------------------- |
-| `NODE_ENV`                     | —                         | `development` ou `production`          |
-| `PORT`                         | —                         | Porta HTTP da API (padrão `3000`)      |
-| `CORS_ORIGIN`                  | —                         | Origens liberadas no CORS (padrão `*`) |
-| `FIREBASE_API_KEY`             | `apiKey`                  |                                        |
-| `FIREBASE_AUTH_DOMAIN`         | `authDomain`              |                                        |
-| `FIREBASE_PROJECT_ID`          | `projectId`               |                                        |
-| `FIREBASE_STORAGE_BUCKET`      | `storageBucket`           |                                        |
-| `FIREBASE_MESSAGING_SENDER_ID` | `messagingSenderId`       |                                        |
-| `FIREBASE_APP_ID`              | `appId`                   |                                        |
+| Variável                | Descrição                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `NODE_ENV`              | `development` ou `production`                                                |
+| `PORT`                  | Porta HTTP da API (padrão `3000`)                                            |
+| `CORS_ORIGIN`           | Origens liberadas no CORS (padrão `*`)                                       |
+| `API_KEYS`              | Chaves de acesso à API, separadas por vírgula (mínimo de 32 caracteres cada) |
+| `FIREBASE_PROJECT_ID`   | Campo `project_id` do JSON da conta de serviço (passo 1.3)                   |
+| `FIREBASE_CLIENT_EMAIL` | Campo `client_email` do JSON                                                 |
+| `FIREBASE_PRIVATE_KEY`  | Campo `private_key` do JSON, entre aspas duplas e com os `\n` mantidos       |
+
+Para gerar uma chave de API aleatória:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Aceitar mais de uma chave permite trocá-las sem interromper os clientes: adicione a nova, atualize
+os clientes e depois remova a antiga.
 
 > O arquivo `.env` está no `.gitignore` e não deve ser versionado.
 
@@ -110,11 +118,22 @@ Para conferir, acesse http://localhost:3000/api/health.
 
 ## Usando a API
 
+### Autenticação
+
+Todas as rotas, exceto `/api/health` e a documentação (`/api/docs`), exigem uma das chaves de
+`API_KEYS` no cabeçalho `X-API-Key`. Sem ela, ou com uma chave errada, a API responde
+**401 Unauthorized**.
+
+```bash
+curl http://localhost:3000/api/vehicles -H "X-API-Key: <SUA_CHAVE>"
+```
+
 ### Documentação interativa (Swagger)
 
 Com a API rodando, acesse **http://localhost:3000/api/docs**. Lá estão todos os endpoints, com
-exemplos de requisição e resposta. Para testar um endpoint, abra-o, clique em **Try it out**,
-preencha os dados e clique em **Execute**.
+exemplos de requisição e resposta. Para testar, clique em **Authorize**, informe a chave de API e
+confirme. Depois abra um endpoint, clique em **Try it out**, preencha os dados e clique em
+**Execute**.
 
 O documento OpenAPI bruto fica em http://localhost:3000/api/docs.json (pode ser importado no
 Postman ou Insomnia).
@@ -122,26 +141,28 @@ Postman ou Insomnia).
 ### Exemplo de fluxo completo
 
 ```bash
+export API_KEY=<SUA_CHAVE>
+
 # 1. Cadastrar um automóvel (guarde o "id" retornado)
 curl -X POST http://localhost:3000/api/vehicles \
-  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{"plate": "ABC1D23", "color": "Preto", "brand": "Fiat"}'
 
 # 2. Cadastrar um motorista (guarde o "id" retornado)
 curl -X POST http://localhost:3000/api/drivers \
-  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{"name": "João da Silva"}'
 
 # 3. Iniciar a utilização do automóvel pelo motorista
 curl -X POST http://localhost:3000/api/vehicle-usages \
-  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{"vehicleId": "<ID_DO_AUTOMOVEL>", "driverId": "<ID_DO_MOTORISTA>", "reason": "Visita a cliente"}'
 
 # 4. Listar as utilizações (com nome do motorista e dados do automóvel)
-curl http://localhost:3000/api/vehicle-usages
+curl http://localhost:3000/api/vehicle-usages -H "X-API-Key: $API_KEY"
 
 # 5. Finalizar a utilização
-curl -X PATCH http://localhost:3000/api/vehicle-usages/<ID_DA_UTILIZACAO>/finish
+curl -X PATCH http://localhost:3000/api/vehicle-usages/<ID_DA_UTILIZACAO>/finish -H "X-API-Key: $API_KEY"
 ```
 
 Enquanto a utilização do passo 3 estiver ativa, tentar usar o mesmo automóvel com outro motorista
@@ -217,6 +238,7 @@ As respostas de erro seguem o formato:
 | Status | Quando                                                       |
 | ------ | ------------------------------------------------------------ |
 | 400    | Dados inválidos (os detalhes vêm em `details`)               |
+| 401    | Chave de API ausente ou inválida                             |
 | 404    | Registro ou rota não encontrados                             |
 | 409    | Conflito: placa repetida, regra de utilização, exclusão bloqueada |
 
@@ -263,7 +285,7 @@ src/
   repositories/     # interfaces + implementação com Firestore
   controllers/      # camada HTTP
   routes/           # definição das rotas (/api/...)
-  middlewares/      # rota não encontrada e tratamento de erros
+  middlewares/      # autenticação por chave de API, rota não encontrada e erros
   utils/            # utilitários (erros HTTP, busca por nome, etc.)
 tests/
   support/          # repositórios em memória e app de teste
@@ -286,16 +308,21 @@ Alguns documentos guardam campos auxiliares de busca que não aparecem nas respo
 
 As regras de utilização são garantidas em duas camadas. A API verifica antes de gravar e responde
 com uma mensagem clara. O Firestore garante o mesmo de forma atômica: iniciar uma utilização cria
-as travas em `activeUsages` dentro de uma transação, e finalizá-la as remove. As regras em
-`firestore.rules` só aceitam uma nova utilização se as duas travas estavam livres e impedem
-excluir automóveis ou motoristas com trava ativa — mesmo que alguém acesse o banco sem passar pela
-API.
+as travas em `activeUsages` dentro de uma transação, que falha se alguma delas já existir, e
+finalizá-la as remove.
+
+Somente a API acessa o banco. Ela usa o Firebase Admin SDK com a conta de serviço, que ignora as
+regras de segurança, enquanto o [`firestore.rules`](firestore.rules) nega qualquer outro acesso.
+Assim, ninguém consegue ler ou gravar dados sem passar pelas validações da API.
 
 ## Solução de problemas
 
 | Mensagem / sintoma                                               | Causa e solução                                                                                 |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `Missing Firebase environment variables: ...`                    | Falta o `.env` ou alguma variável `FIREBASE_*`. Veja o passo 3.                                 |
-| `Anonymous sign-in is disabled...`                               | O login anônimo não está ativado. Veja o passo 1.4.                                             |
-| `Missing or insufficient permissions` / `permission denied`      | As regras não foram publicadas ou estão desatualizadas. Publique o `firestore.rules` (passo 1.5). |
+| `Missing API_KEYS environment variable`                          | Defina ao menos uma chave em `API_KEYS`. Veja o passo 3.                                        |
+| `Each API key must have at least 32 characters`                  | Alguma chave em `API_KEYS` é curta demais. Gere uma nova com o comando do passo 3.              |
+| `Failed to parse private key` / `Invalid PEM`                    | `FIREBASE_PRIVATE_KEY` mal copiada. Use aspas duplas e mantenha os `\n` do JSON.               |
+| `16 UNAUTHENTICATED` / `7 PERMISSION_DENIED` ao iniciar          | Chave da conta de serviço revogada ou de outro projeto. Gere uma nova (passo 1.3).              |
+| `401` com `Invalid or missing API key`                           | Envie o cabeçalho `X-API-Key` com uma das chaves de `API_KEYS`.                                 |
 | Filtro não encontra registros cadastrados antes de uma atualização | Registros antigos não têm os campos de busca. Atualize o registro (`PUT`) para recriá-los.     |

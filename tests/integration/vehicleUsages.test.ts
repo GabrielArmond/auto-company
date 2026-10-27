@@ -1,14 +1,12 @@
-import request from 'supertest';
-import type { Express } from 'express';
-import { createTestApp } from '../support/createTestApp';
+import { createTestClient, type TestClient } from '../support/createTestApp';
 import { createInMemoryDriverRepository } from '../support/inMemoryDriverRepository';
 import { createInMemoryVehicleRepository } from '../support/inMemoryVehicleRepository';
 
 describe('API /api/vehicle-usages', () => {
-  let app: Express;
+  let api: TestClient;
 
   beforeEach(() => {
-    app = createTestApp({
+    api = createTestClient({
       vehicleRepository: createInMemoryVehicleRepository([
         { id: 'v1', plate: 'AAA1111', color: 'Black', brand: 'Fiat' },
         { id: 'v2', plate: 'BBB2222', color: 'White', brand: 'Ford' },
@@ -20,7 +18,7 @@ describe('API /api/vehicle-usages', () => {
     });
   });
 
-  const start = (body: object) => request(app).post('/api/vehicle-usages').send(body);
+  const start = (body: object) => api.post('/api/vehicle-usages').send(body);
 
   it('runs the full usage lifecycle', async () => {
     const started = await start({ driverId: 'd1', vehicleId: 'v1', reason: 'Client visit' });
@@ -34,15 +32,15 @@ describe('API /api/vehicle-usages', () => {
 
     const { id } = started.body;
 
-    const finished = await request(app).patch(`/api/vehicle-usages/${id}/finish`);
+    const finished = await api.patch(`/api/vehicle-usages/${id}/finish`);
     expect(finished.status).toBe(200);
     expect(finished.body.endDate).toEqual(expect.any(String));
 
-    const list = await request(app).get('/api/vehicle-usages');
+    const list = await api.get('/api/vehicle-usages');
     expect(list.status).toBe(200);
     expect(list.body).toEqual([expect.objectContaining({ id, driver: expect.objectContaining({ name: 'Ana Lima' }) })]);
 
-    expect((await request(app).get(`/api/vehicle-usages/${id}`)).body.id).toBe(id);
+    expect((await api.get(`/api/vehicle-usages/${id}`)).body.id).toBe(id);
   });
 
   it('returns 409 when the vehicle is already in use', async () => {
@@ -65,9 +63,9 @@ describe('API /api/vehicle-usages', () => {
 
   it('returns 409 when finishing twice', async () => {
     const { body } = await start({ driverId: 'd1', vehicleId: 'v1', reason: 'Trip' });
-    await request(app).patch(`/api/vehicle-usages/${body.id}/finish`);
+    await api.patch(`/api/vehicle-usages/${body.id}/finish`);
 
-    const res = await request(app).patch(`/api/vehicle-usages/${body.id}/finish`);
+    const res = await api.patch(`/api/vehicle-usages/${body.id}/finish`);
 
     expect(res.status).toBe(409);
   });
@@ -75,15 +73,15 @@ describe('API /api/vehicle-usages', () => {
   it('blocks deleting a vehicle or driver while in use, and allows it after finishing', async () => {
     const { body } = await start({ driverId: 'd1', vehicleId: 'v1', reason: 'Trip' });
 
-    expect((await request(app).delete('/api/vehicles/v1')).status).toBe(409);
-    expect((await request(app).delete('/api/drivers/d1')).status).toBe(409);
+    expect((await api.delete('/api/vehicles/v1')).status).toBe(409);
+    expect((await api.delete('/api/drivers/d1')).status).toBe(409);
 
-    await request(app).patch(`/api/vehicle-usages/${body.id}/finish`);
+    await api.patch(`/api/vehicle-usages/${body.id}/finish`);
 
-    expect((await request(app).delete('/api/vehicles/v1')).status).toBe(204);
-    expect((await request(app).delete('/api/drivers/d1')).status).toBe(204);
+    expect((await api.delete('/api/vehicles/v1')).status).toBe(204);
+    expect((await api.delete('/api/drivers/d1')).status).toBe(204);
 
-    const usage = await request(app).get(`/api/vehicle-usages/${body.id}`);
+    const usage = await api.get(`/api/vehicle-usages/${body.id}`);
     expect(usage.body).toMatchObject({ driver: { name: 'Ana Lima' }, vehicle: { plate: 'AAA1111' } });
   });
 
@@ -102,6 +100,6 @@ describe('API /api/vehicle-usages', () => {
   });
 
   it('returns 404 when finishing an unknown usage', async () => {
-    expect((await request(app).patch('/api/vehicle-usages/nope/finish')).status).toBe(404);
+    expect((await api.patch('/api/vehicle-usages/nope/finish')).status).toBe(404);
   });
 });

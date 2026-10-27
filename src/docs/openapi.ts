@@ -1,4 +1,5 @@
 import type { OpenAPIV3 } from 'openapi-types';
+import { API_KEY_HEADER } from '../middlewares/requireApiKey';
 
 const ref = (schema: string): OpenAPIV3.ReferenceObject => ({ $ref: `#/components/schemas/${schema}` });
 
@@ -11,6 +12,8 @@ const jsonResponse = (
 });
 
 const errorResponse = (description: string) => jsonResponse(description, ref('Error'));
+
+const unauthorized = errorResponse('Missing or invalid API key');
 
 const jsonBody = (schema: string): OpenAPIV3.RequestBodyObject => ({
   required: true,
@@ -46,10 +49,13 @@ export const openApiDocument: OpenAPIV3.Document = {
   info: {
     title: 'Auto-company API',
     version: '1.0.0',
-    description: "Web API to manage the usage of a company's vehicles.",
+    description:
+      "Web API to manage the usage of a company's vehicles. " +
+      'Every route except /health requires the API key in the X-API-Key header (use the Authorize button).',
   },
   // Relative URL so "Try it out" calls the same host serving the docs.
   servers: [{ url: '/api' }],
+  security: [{ ApiKeyAuth: [] }],
   tags: [
     { name: 'Health', description: 'Service status' },
     { name: 'Vehicles', description: 'Vehicle registry' },
@@ -66,6 +72,7 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Health'],
         summary: 'Health check',
+        security: [],
         responses: {
           200: jsonResponse('Service is up', {
             type: 'object',
@@ -88,6 +95,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         ],
         responses: {
           200: jsonResponse('Vehicles found', { type: 'array', items: ref('Vehicle') }),
+          401: unauthorized,
         },
       },
       post: {
@@ -97,6 +105,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         responses: {
           201: jsonResponse('Vehicle created', ref('Vehicle')),
           400: errorResponse('Invalid data'),
+          401: unauthorized,
           409: errorResponse('Plate already registered'),
         },
       },
@@ -108,6 +117,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         summary: 'Get a vehicle by id',
         responses: {
           200: jsonResponse('Vehicle found', ref('Vehicle')),
+          401: unauthorized,
           404: errorResponse('Vehicle not found'),
         },
       },
@@ -119,6 +129,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         responses: {
           200: jsonResponse('Vehicle updated', ref('Vehicle')),
           400: errorResponse('Invalid data'),
+          401: unauthorized,
           404: errorResponse('Vehicle not found'),
           409: errorResponse('Plate already registered'),
         },
@@ -128,6 +139,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         summary: 'Delete a vehicle',
         responses: {
           204: { description: 'Vehicle deleted' },
+          401: unauthorized,
           404: errorResponse('Vehicle not found'),
           409: errorResponse('Vehicle is in use'),
         },
@@ -149,6 +161,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         summary: 'Get a vehicle by plate',
         responses: {
           200: jsonResponse('Vehicle found', ref('Vehicle')),
+          401: unauthorized,
           404: errorResponse('Vehicle not found'),
         },
       },
@@ -163,6 +176,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         parameters: [{ name: 'name', in: 'query', schema: { type: 'string' }, example: 'joao' }],
         responses: {
           200: jsonResponse('Drivers found', { type: 'array', items: ref('Driver') }),
+          401: unauthorized,
         },
       },
       post: {
@@ -172,6 +186,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         responses: {
           201: jsonResponse('Driver created', ref('Driver')),
           400: errorResponse('Invalid data'),
+          401: unauthorized,
         },
       },
     },
@@ -182,6 +197,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         summary: 'Get a driver by id',
         responses: {
           200: jsonResponse('Driver found', ref('Driver')),
+          401: unauthorized,
           404: errorResponse('Driver not found'),
         },
       },
@@ -192,6 +208,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         responses: {
           200: jsonResponse('Driver updated', ref('Driver')),
           400: errorResponse('Invalid data'),
+          401: unauthorized,
           404: errorResponse('Driver not found'),
         },
       },
@@ -200,6 +217,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         summary: 'Delete a driver',
         responses: {
           204: { description: 'Driver deleted' },
+          401: unauthorized,
           404: errorResponse('Driver not found'),
           409: errorResponse('Driver is using a vehicle'),
         },
@@ -212,6 +230,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         description: 'Most recent first, with the driver name and the vehicle information.',
         responses: {
           200: jsonResponse('Vehicle usages found', { type: 'array', items: ref('VehicleUsage') }),
+          401: unauthorized,
         },
       },
       post: {
@@ -221,6 +240,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         responses: {
           201: jsonResponse('Vehicle usage started', ref('VehicleUsage')),
           400: errorResponse('Invalid data'),
+          401: unauthorized,
           404: errorResponse('Vehicle or driver not found'),
           409: errorResponse('Vehicle already in use, or driver already using another vehicle'),
         },
@@ -233,6 +253,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         summary: 'Get a vehicle usage by id',
         responses: {
           200: jsonResponse('Vehicle usage found', ref('VehicleUsage')),
+          401: unauthorized,
           404: errorResponse('Vehicle usage not found'),
         },
       },
@@ -249,6 +270,7 @@ export const openApiDocument: OpenAPIV3.Document = {
         responses: {
           200: jsonResponse('Vehicle usage finished', ref('VehicleUsage')),
           400: errorResponse('Invalid data'),
+          401: unauthorized,
           404: errorResponse('Vehicle usage not found'),
           409: errorResponse('Vehicle usage already finished'),
         },
@@ -256,6 +278,9 @@ export const openApiDocument: OpenAPIV3.Document = {
     },
   },
   components: {
+    securitySchemes: {
+      ApiKeyAuth: { type: 'apiKey', in: 'header', name: API_KEY_HEADER },
+    },
     schemas: {
       VehicleInput: {
         type: 'object',

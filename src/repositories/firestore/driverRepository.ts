@@ -1,16 +1,4 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-  type DocumentSnapshot,
-  type Firestore,
-} from 'firebase/firestore';
+import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 import type { Driver, DriverInput } from '../../models/driver';
 import { buildPrefixIndex, matchesNameQuery, toSearchWords } from '../../utils/nameSearch';
 import type { DriverRepository } from '../driverRepository';
@@ -33,38 +21,38 @@ function toDriver(snapshot: DocumentSnapshot): Driver {
 }
 
 export function createFirestoreDriverRepository(db: Firestore): DriverRepository {
-  const drivers = collection(db, COLLECTION);
+  const drivers = db.collection(COLLECTION);
 
   return {
     async list({ name } = {}) {
       const terms = toSearchWords(name ?? '');
-      if (!terms.length) return (await getDocs(drivers)).docs.map(toDriver);
+      if (!terms.length) return (await drivers.get()).docs.map(toDriver);
 
       const longest = terms.reduce((a, b) => (b.length > a.length ? b : a));
-      const snapshot = await getDocs(query(drivers, where('nameSearch', 'array-contains', longest)));
+      const snapshot = await drivers.where('nameSearch', 'array-contains', longest).get();
 
       return snapshot.docs.map(toDriver).filter((driver) => matchesNameQuery(driver.name, name ?? ''));
     },
 
     async findById(id) {
-      const snapshot = await getDoc(doc(drivers, id));
-      return snapshot.exists() ? toDriver(snapshot) : null;
+      const snapshot = await drivers.doc(id).get();
+      return snapshot.exists ? toDriver(snapshot) : null;
     },
 
     async create(data) {
       const now = new Date();
-      const ref = await addDoc(drivers, { ...toDocument(data), createdAt: now, updatedAt: now });
-      return toDriver(await getDoc(ref));
+      const ref = await drivers.add({ ...toDocument(data), createdAt: now, updatedAt: now });
+      return toDriver(await ref.get());
     },
 
     async update(id, data) {
-      const ref = doc(drivers, id);
-      await updateDoc(ref, { ...toDocument(data), updatedAt: new Date() });
-      return toDriver(await getDoc(ref));
+      const ref = drivers.doc(id);
+      await ref.update({ ...toDocument(data), updatedAt: new Date() });
+      return toDriver(await ref.get());
     },
 
     async delete(id) {
-      await deleteDoc(doc(drivers, id));
+      await drivers.doc(id).delete();
     },
   };
 }

@@ -12,8 +12,12 @@ import { notFound } from './middlewares/notFound';
 import { apiRouter } from './routes';
 import type { Services } from './services';
 
+interface AppOptions {
+  apiKeys?: string[];
+}
+
 // Receives ready-made services (see container.ts), which allows injecting test doubles.
-export function createApp(services: Services) {
+export function createApp(services: Services, { apiKeys = config.apiKeys }: AppOptions = {}) {
   const app = express();
 
   app.use(helmet());
@@ -24,9 +28,13 @@ export function createApp(services: Services) {
   app.get('/api/docs.json', (_req, res) => {
     res.json(openApiDocument);
   });
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
+  app.use(
+    '/api/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openApiDocument, { swaggerOptions: { persistAuthorization: true } }),
+  );
 
-  app.use('/api', apiRouter(services));
+  app.use('/api', apiRouter(services, apiKeys));
 
   // Static frontend (optional): place the build in /public
   app.use(express.static(path.join(__dirname, '..', 'public')));

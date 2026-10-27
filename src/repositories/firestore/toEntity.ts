@@ -1,4 +1,4 @@
-import { Timestamp, type DocumentSnapshot } from 'firebase/firestore';
+import { Timestamp, type DocumentSnapshot } from 'firebase-admin/firestore';
 
 // Converts a DocumentSnapshot into a plain object, turning Timestamps into ISO strings.
 export function toEntity<T extends { id: string }>(doc: DocumentSnapshot): T {

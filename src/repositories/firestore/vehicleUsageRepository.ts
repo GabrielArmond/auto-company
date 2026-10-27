@@ -1,14 +1,4 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  orderBy,
-  query,
-  runTransaction,
-  type DocumentReference,
-  type Firestore,
-} from 'firebase/firestore';
+import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 import type { VehicleUsage } from '../../models/vehicleUsage';
 import { HttpError } from '../../utils/HttpError';
 import type { VehicleUsageRepository } from '../vehicleUsageRepository';
@@ -17,32 +7,28 @@ import { toEntity } from './toEntity';
 const COLLECTION = 'vehicleUsages';
 const LOCKS_COLLECTION = 'activeUsages';
 
-interface UsageLock {
-  usageId: string;
-}
-
 export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsageRepository {
-  const usages = collection(db, COLLECTION);
-  const locks = collection(db, LOCKS_COLLECTION);
+  const usages = db.collection(COLLECTION);
+  const locks = db.collection(LOCKS_COLLECTION);
 
-  const vehicleLock = (vehicleId: string) => doc(locks, `vehicle_${vehicleId}`) as DocumentReference<UsageLock>;
-  const driverLock = (driverId: string) => doc(locks, `driver_${driverId}`) as DocumentReference<UsageLock>;
+  const vehicleLock = (vehicleId: string) => locks.doc(`vehicle_${vehicleId}`);
+  const driverLock = (driverId: string) => locks.doc(`driver_${driverId}`);
 
   async function findById(id: string) {
-    const snapshot = await getDoc(doc(usages, id));
-    return snapshot.exists() ? toEntity<VehicleUsage>(snapshot) : null;
+    const snapshot = await usages.doc(id).get();
+    return snapshot.exists ? toEntity<VehicleUsage>(snapshot) : null;
   }
 
-  async function findByLock(lock: DocumentReference<UsageLock>) {
-    const snapshot = await getDoc(lock);
-    return snapshot.exists() ? findById(snapshot.data().usageId) : null;
+  async function findByLock(lock: DocumentReference) {
+    const snapshot = await lock.get();
+    return snapshot.exists ? findById(snapshot.get('usageId')) : null;
   }
 
   return {
     findById,
 
     async list() {
-      const snapshot = await getDocs(query(usages, orderBy('startDate', 'desc')));
+      const snapshot = await usages.orderBy('startDate', 'desc').get();
       return snapshot.docs.map((d) => toEntity<VehicleUsage>(d));
     },
 
@@ -51,17 +37,17 @@ export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsa
     findActiveByDriver: (driverId) => findByLock(driverLock(driverId)),
 
     async create(data) {
-      const ref = doc(usages);
+      const ref = usages.doc();
       const now = new Date();
 
-      await runTransaction(db, async (tx) => {
+      await db.runTransaction(async (tx) => {
         const vehicleLockRef = vehicleLock(data.vehicle.id);
         const driverLockRef = driverLock(data.driver.id);
 
-        if ((await tx.get(vehicleLockRef)).exists()) {
+        if ((await tx.get(vehicleLockRef)).exists) {
           throw HttpError.conflict(`Vehicle ${data.vehicle.plate} is already in use`);
         }
-        if ((await tx.get(driverLockRef)).exists()) {
+        if ((await tx.get(driverLockRef)).exists) {
           throw HttpError.conflict(`Driver ${data.driver.name} is already using another vehicle`);
         }
 
@@ -81,12 +67,12 @@ export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsa
     },
 
     async finish(id, endDate) {
-      const ref = doc(usages, id);
+      const ref = usages.doc(id);
       const now = new Date();
 
-      const usage = await runTransaction(db, async (tx) => {
+      const usage = await db.runTransaction(async (tx) => {
         const snapshot = await tx.get(ref);
-        if (!snapshot.exists()) throw HttpError.notFound('Vehicle usage not found');
+        if (!snapshot.exists) throw HttpError.notFound('Vehicle usage not found');
 
         const current = toEntity<VehicleUsage>(snapshot);
         if (current.endDate) throw HttpError.conflict('Vehicle usage is already finished');
