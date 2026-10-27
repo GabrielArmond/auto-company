@@ -477,6 +477,10 @@ requisições simultâneas nunca passam juntas pela verificação:
 
 - **Uma utilização por vez**: iniciar uma utilização cria as travas em `activeUsages` dentro de uma
   transação, que falha se alguma delas já existir; finalizá-la as remove.
+- **Exclusão x início de utilização**: excluir um automóvel ou motorista confere, na mesma
+  transação, que não há trava em `activeUsages`; iniciar uma utilização confere, na sua transação,
+  que o automóvel e o motorista ainda existem. Se as duas operações acontecerem ao mesmo tempo, só
+  uma delas vence: ou a exclusão é recusada (409), ou o início responde 404.
 - **Sem sobreposição no histórico**: ao finalizar uma utilização, o término é gravado em
   `usageHistory` para o automóvel e para o motorista. Ao iniciar outra, a mesma transação confere
   que o `startDate` não é anterior a esses términos. Guardar só o último término evita reler todo

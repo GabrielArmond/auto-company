@@ -4,21 +4,20 @@ import { HttpError } from '../../utils/HttpError';
 import { toPage } from '../../utils/pagination';
 import { ensureStartsAfterHistory } from '../usageHistory';
 import type { VehicleUsageRepository } from '../vehicleUsageRepository';
+import { COLLECTIONS, driverKey, vehicleKey } from './collections';
 import { toEntity } from './toEntity';
 
-const COLLECTION = 'vehicleUsages';
-const LOCKS_COLLECTION = 'activeUsages';
-const HISTORY_COLLECTION = 'usageHistory';
-
 export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsageRepository {
-  const usages = db.collection(COLLECTION);
-  const locks = db.collection(LOCKS_COLLECTION);
-  const history = db.collection(HISTORY_COLLECTION);
+  const usages = db.collection(COLLECTIONS.vehicleUsages);
+  const locks = db.collection(COLLECTIONS.activeUsages);
+  const history = db.collection(COLLECTIONS.usageHistory);
+  const vehicles = db.collection(COLLECTIONS.vehicles);
+  const drivers = db.collection(COLLECTIONS.drivers);
 
-  const vehicleLock = (vehicleId: string) => locks.doc(`vehicle_${vehicleId}`);
-  const driverLock = (driverId: string) => locks.doc(`driver_${driverId}`);
-  const vehicleHistory = (vehicleId: string) => history.doc(`vehicle_${vehicleId}`);
-  const driverHistory = (driverId: string) => history.doc(`driver_${driverId}`);
+  const vehicleLock = (vehicleId: string) => locks.doc(vehicleKey(vehicleId));
+  const driverLock = (driverId: string) => locks.doc(driverKey(driverId));
+  const vehicleHistory = (vehicleId: string) => history.doc(vehicleKey(vehicleId));
+  const driverHistory = (driverId: string) => history.doc(driverKey(driverId));
 
   const lastEndDate = (snapshot: DocumentSnapshot): Date | null => snapshot.get('lastEndDate')?.toDate() ?? null;
 
@@ -59,14 +58,24 @@ export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsa
         const vehicleLockRef = vehicleLock(data.vehicle.id);
         const driverLockRef = driverLock(data.driver.id);
 
-        const [vehicleLockSnapshot, driverLockSnapshot, vehicleHistorySnapshot, driverHistorySnapshot] =
-          await Promise.all([
-            tx.get(vehicleLockRef),
-            tx.get(driverLockRef),
-            tx.get(vehicleHistory(data.vehicle.id)),
-            tx.get(driverHistory(data.driver.id)),
-          ]);
+        const [
+          vehicleSnapshot,
+          driverSnapshot,
+          vehicleLockSnapshot,
+          driverLockSnapshot,
+          vehicleHistorySnapshot,
+          driverHistorySnapshot,
+        ] = await Promise.all([
+          tx.get(vehicles.doc(data.vehicle.id)),
+          tx.get(drivers.doc(data.driver.id)),
+          tx.get(vehicleLockRef),
+          tx.get(driverLockRef),
+          tx.get(vehicleHistory(data.vehicle.id)),
+          tx.get(driverHistory(data.driver.id)),
+        ]);
 
+        if (!vehicleSnapshot.exists) throw HttpError.notFound('Vehicle not found');
+        if (!driverSnapshot.exists) throw HttpError.notFound('Driver not found');
         if (vehicleLockSnapshot.exists) {
           throw HttpError.conflict(`Vehicle ${data.vehicle.plate} is already in use`);
         }

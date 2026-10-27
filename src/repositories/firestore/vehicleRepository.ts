@@ -10,10 +10,8 @@ import { HttpError } from '../../utils/HttpError';
 import { normalizeSearchTerm } from '../../utils/normalizeSearchTerm';
 import { toPage } from '../../utils/pagination';
 import type { VehicleRepository } from '../vehicleRepository';
+import { COLLECTIONS, vehicleKey } from './collections';
 import { toEntity } from './toEntity';
-
-const COLLECTION = 'vehicles';
-const PLATES_COLLECTION = 'vehiclePlates';
 
 // Lowercase copies used only for case-insensitive filtering; never exposed by the API.
 interface SearchFields {
@@ -38,8 +36,9 @@ function toVehicle(snapshot: DocumentSnapshot): Vehicle {
 }
 
 export function createFirestoreVehicleRepository(db: Firestore): VehicleRepository {
-  const vehicles = db.collection(COLLECTION);
-  const plates = db.collection(PLATES_COLLECTION);
+  const vehicles = db.collection(COLLECTIONS.vehicles);
+  const plates = db.collection(COLLECTIONS.vehiclePlates);
+  const activeUsages = db.collection(COLLECTIONS.activeUsages);
 
   const plateLock = (plate: string) => plates.doc(plate);
 
@@ -118,8 +117,9 @@ export function createFirestoreVehicleRepository(db: Firestore): VehicleReposito
       const ref = vehicles.doc(id);
 
       await db.runTransaction(async (tx) => {
-        const snapshot = await tx.get(ref);
+        const [snapshot, usageLock] = await Promise.all([tx.get(ref), tx.get(activeUsages.doc(vehicleKey(id)))]);
         if (!snapshot.exists) return;
+        if (usageLock.exists) throw HttpError.conflict('Vehicle is in use and cannot be deleted');
 
         const lock = plateLock(snapshot.get('plate'));
         const lockSnapshot = await tx.get(lock);

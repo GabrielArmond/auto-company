@@ -1,11 +1,11 @@
 import { FieldPath, type DocumentSnapshot, type Firestore, type Query } from 'firebase-admin/firestore';
 import type { Driver, DriverInput } from '../../models/driver';
 import { buildPrefixIndex, matchesNameQuery, toSearchWords } from '../../utils/nameSearch';
+import { HttpError } from '../../utils/HttpError';
 import { toPage } from '../../utils/pagination';
 import type { DriverRepository } from '../driverRepository';
+import { COLLECTIONS, driverKey } from './collections';
 import { toEntity } from './toEntity';
-
-const COLLECTION = 'drivers';
 
 // Search-only field; never exposed by the API.
 interface SearchFields {
@@ -25,7 +25,8 @@ function toDriver(snapshot: DocumentSnapshot): Driver {
 }
 
 export function createFirestoreDriverRepository(db: Firestore): DriverRepository {
-  const drivers = db.collection(COLLECTION);
+  const drivers = db.collection(COLLECTIONS.drivers);
+  const activeUsages = db.collection(COLLECTIONS.activeUsages);
 
   return {
     async list({ name = '' }, { limit, cursor }) {
@@ -66,12 +67,24 @@ export function createFirestoreDriverRepository(db: Firestore): DriverRepository
 
     async update(id, data) {
       const ref = drivers.doc(id);
-      await ref.update({ ...toDocument(data), updatedAt: new Date() });
+
+      await db.runTransaction(async (tx) => {
+        if (!(await tx.get(ref)).exists) throw HttpError.notFound('Driver not found');
+        tx.update(ref, { ...toDocument(data), updatedAt: new Date() });
+      });
+
       return toDriver(await ref.get());
     },
 
     async delete(id) {
-      await drivers.doc(id).delete();
+      const ref = drivers.doc(id);
+
+      await db.runTransaction(async (tx) => {
+        const usageLock = await tx.get(activeUsages.doc(driverKey(id)));
+        if (usageLock.exists) throw HttpError.conflict('Driver is using a vehicle and cannot be deleted');
+
+        tx.delete(ref);
+      });
     },
   };
 }
