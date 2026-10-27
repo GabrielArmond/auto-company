@@ -1,6 +1,6 @@
+import { createInMemoryDriverRepository } from '../../src/repositories/memory/driverRepository';
+import { createInMemoryVehicleRepository } from '../../src/repositories/memory/vehicleRepository';
 import { createTestClient, type TestClient } from '../support/createTestApp';
-import { createInMemoryDriverRepository } from '../support/inMemoryDriverRepository';
-import { createInMemoryVehicleRepository } from '../support/inMemoryVehicleRepository';
 
 describe('API /api/vehicle-usages', () => {
   let api: TestClient;

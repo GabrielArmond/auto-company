@@ -1,8 +1,8 @@
 import type { VehicleUsageRepository } from '../../src/repositories/vehicleUsageRepository';
 import { createVehicleUsageService, type VehicleUsageService } from '../../src/services/vehicleUsageService';
-import { createInMemoryDriverRepository } from '../support/inMemoryDriverRepository';
-import { createInMemoryVehicleRepository } from '../support/inMemoryVehicleRepository';
-import { createInMemoryVehicleUsageRepository } from '../support/inMemoryVehicleUsageRepository';
+import { createInMemoryDriverRepository } from '../../src/repositories/memory/driverRepository';
+import { createInMemoryVehicleRepository } from '../../src/repositories/memory/vehicleRepository';
+import { createInMemoryVehicleUsageRepository } from '../../src/repositories/memory/vehicleUsageRepository';
 
 const now = new Date('2026-05-10T12:00:00Z');
 

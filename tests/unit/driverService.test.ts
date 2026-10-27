@@ -1,7 +1,7 @@
 import type { DriverRepository } from '../../src/repositories/driverRepository';
 import { createDriverService, type DriverService } from '../../src/services/driverService';
-import { createInMemoryDriverRepository } from '../support/inMemoryDriverRepository';
-import { createInMemoryVehicleUsageRepository } from '../support/inMemoryVehicleUsageRepository';
+import { createInMemoryDriverRepository } from '../../src/repositories/memory/driverRepository';
+import { createInMemoryVehicleUsageRepository } from '../../src/repositories/memory/vehicleUsageRepository';
 
 describe('driverService', () => {
   let repository: DriverRepository;

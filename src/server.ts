@@ -6,7 +6,7 @@ async function main() {
   const app = createApp(await createContainer());
 
   const server = app.listen(config.port, () => {
-    console.log(`Server running at http://localhost:${config.port} (${config.env})`);
+    console.log(`Server running at http://localhost:${config.port} (${config.env}, ${config.database} database)`);
   });
 
   function shutdown(signal: NodeJS.Signals) {

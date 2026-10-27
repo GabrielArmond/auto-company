@@ -1,7 +1,7 @@
 import type { VehicleRepository } from '../../src/repositories/vehicleRepository';
 import { createVehicleService, type VehicleService } from '../../src/services/vehicleService';
-import { createInMemoryVehicleRepository } from '../support/inMemoryVehicleRepository';
-import { createInMemoryVehicleUsageRepository } from '../support/inMemoryVehicleUsageRepository';
+import { createInMemoryVehicleRepository } from '../../src/repositories/memory/vehicleRepository';
+import { createInMemoryVehicleUsageRepository } from '../../src/repositories/memory/vehicleUsageRepository';
 
 describe('vehicleService', () => {
   let repository: VehicleRepository;

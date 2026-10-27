@@ -1,6 +1,6 @@
-import type { Driver, DriverInput } from '../../src/models/driver';
-import type { DriverRepository } from '../../src/repositories/driverRepository';
-import { matchesNameQuery } from '../../src/utils/nameSearch';
+import type { Driver, DriverInput } from '../../models/driver';
+import type { DriverRepository } from '../driverRepository';
+import { matchesNameQuery } from '../../utils/nameSearch';
 
 type Seed = DriverInput & { id?: string };
 

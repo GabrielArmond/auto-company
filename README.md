@@ -24,25 +24,83 @@ E garante as regras de negócio:
 
 - [Node.js](https://nodejs.org/) + [TypeScript](https://www.typescriptlang.org/)
 - [Express 5](https://expressjs.com/) como framework HTTP
-- [Firebase](https://firebase.google.com/) (Cloud Firestore, via Firebase Admin SDK) como banco de dados
+- [Firebase](https://firebase.google.com/) (Cloud Firestore, via Firebase Admin SDK) como banco de
+  dados, ou um banco em memória para rodar sem nenhuma configuração
+- [Docker Compose](https://docs.docker.com/compose/) para subir a API com o emulador do Firestore
 - [Swagger UI](https://swagger.io/tools/swagger-ui/) para documentação interativa
 - [Jest](https://jestjs.io/) + [Supertest](https://github.com/ladjs/supertest) para testes
 - [ESLint](https://eslint.org/) com `typescript-eslint`
 
-## Pré-requisitos
-
-- [Node.js](https://nodejs.org/) 22 ou superior (a versão recomendada está em `.nvmrc`)
-- Uma conta Google para criar o projeto no [Firebase](https://console.firebase.google.com/)
-
 ## Como rodar o projeto
 
-### 1. Configurar o Firebase
+A API pode guardar os dados de três formas, escolhidas pela variável `DATABASE`:
+
+| Modo                                                   | Precisa de                     | Os dados                          |
+| ------------------------------------------------------ | ------------------------------ | --------------------------------- |
+| [Em memória](#opção-1-em-memória-mais-rápido) (padrão) | Node.js 22+                    | Somem ao reiniciar a API          |
+| [Emulador do Firestore](#opção-2-docker-com-o-emulador-do-firestore) | Docker           | Ficam no container até ele parar  |
+| [Firebase real](#opção-3-projeto-real-no-firebase)     | Node.js 22+ e uma conta Google | Ficam no Firestore                |
+
+Nos três casos a API, as regras de negócio e as rotas são as mesmas; só muda onde os dados são
+gravados. Para avaliar o projeto, a **opção 1** basta. A **opção 2** mostra a integração com o
+Firestore sem precisar criar conta.
+
+### Opção 1: em memória (mais rápido)
+
+```bash
+git clone https://github.com/GabrielArmond/auto-company.git
+cd auto-company
+npm install
+cp .env.example .env
+npm run dev
+```
+
+O terminal mostra `Server running at http://localhost:3000 (development, memory database)`.
+Abra **http://localhost:3000/api/docs** e use a chave de demonstração do `.env.example`
+(`local-demo-api-key-change-me-0123456789`) no botão **Authorize**.
+
+### Opção 2: Docker com o emulador do Firestore
+
+```bash
+git clone https://github.com/GabrielArmond/auto-company.git
+cd auto-company
+docker compose up --build
+```
+
+O Compose sobe dois containers:
+
+- **`firestore`**: o emulador oficial do Firestore (parte do `firebase-tools`), que roda
+  localmente e não precisa de conta Google nem de credenciais. A interface do emulador, em
+  **http://localhost:4000/firestore**, mostra os documentos gravados em tempo real.
+- **`api`**: a API compilada, ligada ao emulador (`DATABASE=firestore` e
+  `FIRESTORE_EMULATOR_HOST=firestore:8080`). Ela só inicia depois que o emulador estiver pronto.
+
+A API fica em **http://localhost:3000/api/docs**, com a mesma chave de demonstração da opção 1.
+Para trocar a chave ou a porta:
+
+```bash
+API_KEYS=<sua-chave> API_PORT=3001 docker compose up --build
+```
+
+> O Compose também lê o `.env` da pasta. Se ele existir, a `API_KEYS` dele é a que vale.
+
+Para usar o emulador com a API rodando fora do Docker (por exemplo, com `npm run dev`), suba só o
+emulador com `docker compose up firestore` e use no `.env`:
+
+```bash
+DATABASE=firestore
+FIRESTORE_EMULATOR_HOST=localhost:8080
+```
+
+### Opção 3: projeto real no Firebase
+
+#### 1. Configurar o Firebase
 
 1. **Criar o projeto**: acesse o [Console do Firebase](https://console.firebase.google.com/),
    clique em **Adicionar projeto** e siga o assistente.
 2. **Criar o banco de dados**: no menu lateral, vá em **Firestore Database** → **Criar banco de
    dados**. Escolha a localização (por exemplo, `southamerica-east1`) e inicie em **modo de
-   produção** — as regras de acesso serão publicadas no passo 5.
+   produção**.
 3. **Gerar a chave da conta de serviço**: em **Configurações do projeto** (ícone de engrenagem) →
    **Contas de serviço**, clique em **Gerar nova chave privada**. Um arquivo JSON será baixado; os
    campos `project_id`, `client_email` e `private_key` dele serão usados no `.env`.
@@ -59,35 +117,32 @@ E garante as regras de negócio:
    npx firebase-tools deploy --only firestore:rules --project <id-do-projeto>
    ```
 
-### 2. Instalar as dependências
+#### 2. Configurar e iniciar
 
 ```bash
-git clone https://github.com/GabrielArmond/auto-company.git
-cd auto-company
 npm install
-```
-
-### 3. Configurar as variáveis de ambiente
-
-Crie o arquivo `.env` a partir do exemplo:
-
-```bash
 cp .env.example .env
 ```
 
-Preencha as variáveis:
+No `.env`, defina `DATABASE=firestore`, descomente as variáveis `FIREBASE_*` e preencha com os
+dados do JSON. Depois inicie com `npm run dev`.
 
-| Variável                | Descrição                                                                    |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| `NODE_ENV`              | `development` ou `production`                                                |
-| `PORT`                  | Porta HTTP da API (padrão `3000`)                                            |
-| `CORS_ORIGIN`           | Origens liberadas no CORS (padrão `*`)                                       |
-| `API_KEYS`              | Chaves de acesso à API, separadas por vírgula (mínimo de 32 caracteres cada) |
-| `FIREBASE_PROJECT_ID`   | Campo `project_id` do JSON da conta de serviço (passo 1.3)                   |
-| `FIREBASE_CLIENT_EMAIL` | Campo `client_email` do JSON                                                 |
-| `FIREBASE_PRIVATE_KEY`  | Campo `private_key` do JSON, entre aspas duplas e com os `\n` mantidos       |
+### Variáveis de ambiente
 
-Para gerar uma chave de API aleatória:
+| Variável                  | Descrição                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `NODE_ENV`                | `development` ou `production`                                                  |
+| `PORT`                    | Porta HTTP da API (padrão `3000`)                                              |
+| `CORS_ORIGIN`             | Origens liberadas no CORS (padrão `*`)                                         |
+| `API_KEYS`                | Chaves de acesso à API, separadas por vírgula (mínimo de 32 caracteres cada)   |
+| `DATABASE`                | `memory` (padrão) ou `firestore`                                               |
+| `FIRESTORE_EMULATOR_HOST` | Endereço do emulador (ex.: `localhost:8080`); dispensa as credenciais abaixo   |
+| `FIREBASE_PROJECT_ID`     | Campo `project_id` do JSON da conta de serviço                                 |
+| `FIREBASE_CLIENT_EMAIL`   | Campo `client_email` do JSON                                                   |
+| `FIREBASE_PRIVATE_KEY`    | Campo `private_key` do JSON, entre aspas duplas e com os `\n` mantidos         |
+
+A chave de `API_KEYS` do `.env.example` serve só para testes locais. Em qualquer ambiente
+acessível por outras pessoas, gere uma chave aleatória:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -98,23 +153,12 @@ os clientes e depois remova a antiga.
 
 > O arquivo `.env` está no `.gitignore` e não deve ser versionado.
 
-### 4. Iniciar a API
-
-Em desenvolvimento (reinicia automaticamente ao salvar):
-
-```bash
-npm run dev
-```
-
-Em produção:
+### Build de produção
 
 ```bash
 npm run build
 npm start
 ```
-
-Se tudo estiver certo, o terminal mostra `Server running at http://localhost:3000 (development)`.
-Para conferir, acesse http://localhost:3000/api/health.
 
 ## Usando a API
 
@@ -125,7 +169,7 @@ Todas as rotas, exceto `/api/health` e a documentação (`/api/docs`), exigem um
 **401 Unauthorized**.
 
 ```bash
-curl http://localhost:3000/api/vehicles -H "X-API-Key: <SUA_CHAVE>"
+curl http://localhost:3000/api/vehicles -H "X-API-Key: local-demo-api-key-change-me-0123456789"
 ```
 
 ### Documentação interativa (Swagger)
@@ -141,7 +185,7 @@ Postman ou Insomnia).
 ### Exemplo de fluxo completo
 
 ```bash
-export API_KEY=<SUA_CHAVE>
+export API_KEY=local-demo-api-key-change-me-0123456789
 
 # 1. Cadastrar um automóvel (guarde o "id" retornado)
 curl -X POST http://localhost:3000/api/vehicles \
@@ -244,8 +288,8 @@ As respostas de erro seguem o formato:
 
 ## Testes
 
-Os testes não acessam o Firebase: os repositórios do Firestore são substituídos por
-implementações em memória, então rodam sem configuração.
+Os testes não acessam o Firebase: usam os repositórios em memória, então rodam sem
+configuração.
 
 ```bash
 npm test                # executa todos os testes
@@ -269,26 +313,27 @@ npm run test:coverage   # relatório de cobertura em coverage/
 ## Arquitetura
 
 O código é organizado em camadas: **rotas → controllers → services → repositories**. As regras
-de negócio ficam nos services, que dependem apenas de interfaces de repositório. Em produção essas
-interfaces são implementadas com o Firestore; nos testes, em memória.
+de negócio ficam nos services, que dependem apenas de interfaces de repositório. Cada interface tem
+duas implementações, uma com o Firestore e outra em memória, e o `container.ts` escolhe qual usar
+pela variável `DATABASE`. Os testes usam as implementações em memória.
 
 ```
 src/
   app.ts            # monta o app Express a partir dos services
   server.ts         # ponto de entrada: conecta ao Firebase e inicia o servidor
-  container.ts      # liga os repositórios do Firestore aos services
+  container.ts      # escolhe os repositórios (memória ou Firestore) e monta os services
   config/           # variáveis de ambiente e conexão com o Firebase
   docs/             # documento OpenAPI exibido pelo Swagger
   models/           # tipos das entidades
   validators/       # validação e normalização dos dados de entrada
   services/         # regras de negócio
-  repositories/     # interfaces + implementação com Firestore
+  repositories/     # interfaces + implementações com Firestore (firestore/) e em memória (memory/)
   controllers/      # camada HTTP
   routes/           # definição das rotas (/api/...)
   middlewares/      # autenticação por chave de API, rota não encontrada e erros
   utils/            # utilitários (erros HTTP, busca por nome, etc.)
 tests/
-  support/          # repositórios em memória e app de teste
+  support/          # app e cliente HTTP de teste
   unit/             # testes de validators, services e utilitários
   integration/      # testes das rotas HTTP com Supertest
 ```
@@ -319,10 +364,13 @@ Assim, ninguém consegue ler ou gravar dados sem passar pelas validações da AP
 
 | Mensagem / sintoma                                               | Causa e solução                                                                                 |
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `Missing Firebase environment variables: ...`                    | Falta o `.env` ou alguma variável `FIREBASE_*`. Veja o passo 3.                                 |
-| `Missing API_KEYS environment variable`                          | Defina ao menos uma chave em `API_KEYS`. Veja o passo 3.                                        |
-| `Each API key must have at least 32 characters`                  | Alguma chave em `API_KEYS` é curta demais. Gere uma nova com o comando do passo 3.              |
+| `Missing API_KEYS environment variable`                          | Falta o `.env` ou a variável `API_KEYS`. Rode `cp .env.example .env`.                           |
+| `Each API key must have at least 32 characters`                  | Alguma chave em `API_KEYS` é curta demais. Gere uma nova (veja Variáveis de ambiente).          |
+| `Invalid DATABASE "..."`                                         | `DATABASE` aceita apenas `memory` ou `firestore`.                                               |
+| `Missing Firebase environment variables: ...`                    | `DATABASE=firestore` sem emulador e sem as variáveis `FIREBASE_*`. Veja a opção 2 ou a 3.       |
 | `Failed to parse private key` / `Invalid PEM`                    | `FIREBASE_PRIVATE_KEY` mal copiada. Use aspas duplas e mantenha os `\n` do JSON.               |
-| `16 UNAUTHENTICATED` / `7 PERMISSION_DENIED` ao iniciar          | Chave da conta de serviço revogada ou de outro projeto. Gere uma nova (passo 1.3).              |
+| `16 UNAUTHENTICATED` / `7 PERMISSION_DENIED` ao iniciar          | Chave da conta de serviço revogada ou de outro projeto. Gere uma nova (opção 3, passo 3).       |
+| `ECONNREFUSED ...:8080` ao iniciar                               | O emulador não está rodando. Suba com `docker compose up firestore`.                            |
 | `401` com `Invalid or missing API key`                           | Envie o cabeçalho `X-API-Key` com uma das chaves de `API_KEYS`.                                 |
+| `address already in use` / `port is already allocated`           | A porta já está ocupada. Mude `PORT` no `.env` ou use `API_PORT=3001 docker compose up`.        |
 | Filtro não encontra registros cadastrados antes de uma atualização | Registros antigos não têm os campos de busca. Atualize o registro (`PUT`) para recriá-los.     |

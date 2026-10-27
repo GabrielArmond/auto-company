@@ -1,6 +1,6 @@
-import type { Vehicle, VehicleInput } from '../../src/models/vehicle';
-import type { VehicleRepository } from '../../src/repositories/vehicleRepository';
-import { normalizeSearchTerm } from '../../src/utils/normalizeSearchTerm';
+import type { Vehicle, VehicleInput } from '../../models/vehicle';
+import type { VehicleRepository } from '../vehicleRepository';
+import { normalizeSearchTerm } from '../../utils/normalizeSearchTerm';
 
 type Seed = VehicleInput & { id?: string };
 

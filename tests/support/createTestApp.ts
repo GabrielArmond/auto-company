@@ -1,23 +1,14 @@
 import request from 'supertest';
 import { createApp } from '../../src/app';
+import { createServices, type Repositories } from '../../src/container';
 import { API_KEY_HEADER } from '../../src/middlewares/requireApiKey';
-import type { DriverRepository } from '../../src/repositories/driverRepository';
-import type { VehicleRepository } from '../../src/repositories/vehicleRepository';
-import type { VehicleUsageRepository } from '../../src/repositories/vehicleUsageRepository';
-import { createDriverService } from '../../src/services/driverService';
-import { createVehicleService } from '../../src/services/vehicleService';
-import { createVehicleUsageService } from '../../src/services/vehicleUsageService';
-import { createInMemoryDriverRepository } from './inMemoryDriverRepository';
-import { createInMemoryVehicleRepository } from './inMemoryVehicleRepository';
-import { createInMemoryVehicleUsageRepository } from './inMemoryVehicleUsageRepository';
+import { createInMemoryDriverRepository } from '../../src/repositories/memory/driverRepository';
+import { createInMemoryVehicleRepository } from '../../src/repositories/memory/vehicleRepository';
+import { createInMemoryVehicleUsageRepository } from '../../src/repositories/memory/vehicleUsageRepository';
 
 export const TEST_API_KEY = 'test-api-key-0123456789abcdef0123456789';
 
-interface TestRepositories {
-  vehicleRepository?: VehicleRepository;
-  driverRepository?: DriverRepository;
-  vehicleUsageRepository?: VehicleUsageRepository;
-}
+type TestRepositories = Partial<Repositories>;
 
 export type TestClient = ReturnType<typeof createTestClient>;
 
@@ -27,14 +18,9 @@ export function createTestApp({
   driverRepository = createInMemoryDriverRepository(),
   vehicleUsageRepository = createInMemoryVehicleUsageRepository(),
 }: TestRepositories = {}) {
-  return createApp(
-    {
-      vehicleService: createVehicleService(vehicleRepository, vehicleUsageRepository),
-      driverService: createDriverService(driverRepository, vehicleUsageRepository),
-      vehicleUsageService: createVehicleUsageService({ vehicleUsageRepository, vehicleRepository, driverRepository }),
-    },
-    { apiKeys: [TEST_API_KEY] },
-  );
+  return createApp(createServices({ vehicleRepository, driverRepository, vehicleUsageRepository }), {
+    apiKeys: [TEST_API_KEY],
+  });
 }
 
 // Supertest client that sends the test API key on every request.

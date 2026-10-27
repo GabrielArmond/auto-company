@@ -1,5 +1,5 @@
+import { createInMemoryVehicleRepository } from '../../src/repositories/memory/vehicleRepository';
 import { createTestClient, type TestClient } from '../support/createTestApp';
-import { createInMemoryVehicleRepository } from '../support/inMemoryVehicleRepository';
 
 describe('API /api/vehicles', () => {
   let api: TestClient;

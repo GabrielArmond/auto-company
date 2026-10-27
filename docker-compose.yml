@@ -1,0 +1,29 @@
+services:
+  firestore:
+    build:
+      context: .
+      dockerfile: docker/firestore-emulator/Dockerfile
+    ports:
+      - '4000:4000'
+      - '4400:4400'
+      - '8080:8080'
+      - '9150:9150'
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://localhost:8080').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build: .
+    ports:
+      - '${API_PORT:-3000}:3000'
+    environment:
+      DATABASE: firestore
+      FIRESTORE_EMULATOR_HOST: firestore:8080
+      FIREBASE_PROJECT_ID: demo-auto-company
+      # Local demo key only; override with API_KEYS=... docker compose up
+      API_KEYS: ${API_KEYS:-local-demo-api-key-change-me-0123456789}
+    depends_on:
+      firestore:
+        condition: service_healthy
