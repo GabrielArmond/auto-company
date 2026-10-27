@@ -20,6 +20,9 @@ E garante as regras de negócio:
 - Um automóvel só pode ser utilizado por um motorista por vez.
 - Um motorista que já esteja utilizando um automóvel não pode utilizar outro ao mesmo tempo.
 
+Essas regras valem também para requisições simultâneas e para utilizações registradas com data
+retroativa (veja [Utilizações](#utilizações-vehicle-usages)).
+
 ### Tecnologias
 
 - [Node.js](https://nodejs.org/) + [TypeScript](https://www.typescriptlang.org/)
@@ -42,7 +45,7 @@ A API pode guardar os dados de três formas, escolhidas pela variável `DATABASE
 | [Firebase real](#opção-3-projeto-real-no-firebase)     | Node.js 22+ e uma conta Google | Ficam no Firestore                |
 
 Nos três casos a API, as regras de negócio e as rotas são as mesmas; só muda onde os dados são
-gravados. Para avaliar o projeto, a **opção 1** basta. A **opção 2** mostra a integração com o
+gravados. A versão recomendada do Node.js está no [`.nvmrc`](.nvmrc) (`nvm use`). Para avaliar o projeto, a **opção 1** basta. A **opção 2** mostra a integração com o
 Firestore sem precisar criar conta.
 
 ### Opção 1: em memória (mais rápido)
@@ -67,7 +70,8 @@ cd auto-company
 docker compose up --build
 ```
 
-O Compose sobe dois containers:
+A primeira execução leva alguns minutos, porque baixa o Java e o emulador para dentro da imagem;
+as próximas usam o cache. O Compose sobe dois containers:
 
 - **`firestore`**: o emulador oficial do Firestore (parte do `firebase-tools`), que roda
   localmente e não precisa de conta Google nem de credenciais. A interface do emulador, em
@@ -81,6 +85,9 @@ Para trocar a chave ou a porta:
 ```bash
 API_KEYS=<sua-chave> API_PORT=3001 docker compose up --build
 ```
+
+Com `API_PORT=3001`, a API responde em http://localhost:3001; o log do container continua mostrando
+a porta interna (`3000`).
 
 > O Compose também lê o `.env` da pasta. Se ele existir, a `API_KEYS` dele é a que vale.
 
@@ -179,9 +186,9 @@ curl http://localhost:3000/api/vehicles -H "X-API-Key: local-demo-api-key-change
 
 Cada IP pode fazer até `RATE_LIMIT_MAX` requisições (padrão 100) a cada `RATE_LIMIT_WINDOW_MS`
 (padrão 1 minuto). Acima disso, a API responde **429 Too Many Requests** com o cabeçalho
-`Retry-After`, que informa em quantos segundos tentar de novo. Toda resposta traz os cabeçalhos
-`RateLimit` e `RateLimit-Policy` com o limite e quantas requisições restam. `/api/health` e a
-documentação ficam fora do limite.
+`Retry-After`, que informa em quantos segundos tentar de novo. As respostas das rotas limitadas
+trazem os cabeçalhos `RateLimit` e `RateLimit-Policy`, com o limite e quantas requisições restam.
+`/api/health` e a documentação ficam fora do limite.
 
 As requisições com chave de API errada também contam, o que impede tentar adivinhar a chave por
 força bruta.
@@ -262,9 +269,10 @@ curl "http://localhost:3000/api/vehicles?limit=50&cursor=<nextCursor>" -H "X-API
 ```
 
 O cursor é o id do último item da página, e não um número de página. Assim, cada página é lida
-diretamente a partir desse ponto, sem reler as anteriores, e cadastros feitos durante a navegação
-não fazem itens se repetirem ou serem pulados. Automóveis e motoristas são ordenados pelo id, e as
-utilizações, da mais recente para a mais antiga. Um `limit` ou `cursor` inválido retorna 400.
+diretamente a partir desse ponto, sem reler as anteriores, e cadastros ou exclusões feitos durante a
+navegação não fazem os demais itens se repetirem ou serem pulados. Automóveis e motoristas são
+ordenados pelo id, e as utilizações, da mais recente para a mais antiga. Um `limit` ou `cursor`
+inválido retorna 400.
 
 ### Automóveis (`vehicles`)
 
@@ -335,10 +343,10 @@ As respostas de erro seguem o formato:
 
 | Status | Quando                                                       |
 | ------ | ------------------------------------------------------------ |
-| 400    | Dados inválidos (os detalhes vêm em `details`) ou JSON malformado |
+| 400    | Dados ou parâmetros de paginação inválidos (detalhes em `details`), ou JSON malformado |
 | 401    | Chave de API ausente ou inválida                             |
 | 404    | Registro ou rota não encontrados                             |
-| 409    | Conflito: placa repetida, regra de utilização, exclusão bloqueada |
+| 409    | Conflito: placa repetida, regra de utilização (inclusive sobreposição), exclusão bloqueada |
 | 413    | Corpo da requisição acima de 100 KB                          |
 | 429    | Limite de requisições excedido (veja `Retry-After`)          |
 | 500    | Erro inesperado                                              |
@@ -438,22 +446,28 @@ pela variável `DATABASE`. Os testes usam as implementações em memória.
 ```
 src/
   app.ts            # monta o app Express a partir dos services
-  server.ts         # ponto de entrada: conecta ao Firebase e inicia o servidor
+  server.ts         # ponto de entrada: cria os repositórios e inicia o servidor
   container.ts      # escolhe os repositórios (memória ou Firestore) e monta os services
   config/           # variáveis de ambiente e conexão com o Firebase
   docs/             # documento OpenAPI exibido pelo Swagger
-  models/           # tipos das entidades
-  validators/       # validação e normalização dos dados de entrada
+  models/           # tipos das entidades e da paginação
+  validators/       # validação e normalização do corpo e da query string
   services/         # regras de negócio
   repositories/     # interfaces + implementações com Firestore (firestore/) e em memória (memory/)
   controllers/      # camada HTTP
   routes/           # definição das rotas (/api/...)
-  middlewares/      # autenticação por chave de API, rota não encontrada e erros
-  utils/            # utilitários (erros HTTP, busca por nome, etc.)
+  middlewares/      # chave de API, limite de requisições, rota não encontrada e erros
+  utils/            # utilitários (erros HTTP, busca por nome, paginação, ids)
 tests/
   support/          # app e cliente HTTP de teste
-  unit/             # testes de validators, services e utilitários
+  unit/             # testes de validators, services, config e utilitários
   integration/      # testes das rotas HTTP com Supertest
+docker/             # imagem do emulador do Firestore
+Dockerfile          # imagem da API
+docker-compose.yml  # API + emulador do Firestore
+firestore.rules     # regras do Firestore (negam todo acesso direto)
+firebase.json       # aponta as regras e configura o emulador
+public/             # página estática servida na raiz (/)
 ```
 
 ### Dados no Firestore
@@ -506,9 +520,10 @@ Assim, ninguém consegue ler ou gravar dados sem passar pelas validações da AP
 | `Missing Firebase environment variables: ...`                    | `DATABASE=firestore` sem emulador e sem as variáveis `FIREBASE_*`. Veja a opção 2 ou a 3.       |
 | `Failed to parse private key` / `Invalid PEM`                    | `FIREBASE_PRIVATE_KEY` mal copiada. Use aspas duplas e mantenha os `\n` do JSON.               |
 | `16 UNAUTHENTICATED` / `7 PERMISSION_DENIED` ao iniciar          | Chave da conta de serviço revogada ou de outro projeto. Gere uma nova (opção 3, passo 3).       |
-| `ECONNREFUSED ...:8080` ao iniciar                               | O emulador não está rodando. Suba com `docker compose up firestore`.                            |
+| `Could not connect to the Firestore emulator at ... within 10s`  | O emulador não está rodando ou o endereço está errado. Suba com `docker compose up firestore`.  |
+| `Could not connect to Firestore within 10s`                      | Sem acesso à internet ou bloqueio de firewall até o Google Cloud (opção 3).                     |
 | `Invalid TRUST_PROXY "..."`                                      | `TRUST_PROXY` aceita apenas um número inteiro (a quantidade de proxies). Veja Limite de requisições. |
 | `429` com `Too many requests...`                                 | Limite de requisições atingido. Aguarde os segundos de `Retry-After` ou aumente `RATE_LIMIT_MAX`. |
 | `401` com `Invalid or missing API key`                           | Envie o cabeçalho `X-API-Key` com uma das chaves de `API_KEYS`.                                 |
-| `address already in use` / `port is already allocated`           | A porta já está ocupada. Mude `PORT` no `.env` ou use `API_PORT=3001 docker compose up`.        |
+| `address already in use` / `port is already allocated`           | A porta já está ocupada. Mude `PORT` no `.env` ou use `API_PORT=3001 docker compose up`. Para as portas do emulador (4000, 4400, 8080, 9150), libere-as ou altere o mapeamento em `docker-compose.yml`. |
 | Filtro não encontra registros cadastrados antes de uma atualização | Registros antigos não têm os campos de busca. Atualize o registro (`PUT`) para recriá-los.     |
