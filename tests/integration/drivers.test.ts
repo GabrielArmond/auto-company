@@ -16,13 +16,13 @@ describe('API /api/drivers', () => {
     const res = await api.get('/api/drivers');
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
+    expect(res.body.data).toHaveLength(2);
   });
 
   it('GET filters by name ignoring case and accents', async () => {
     const res = await api.get('/api/drivers').query({ name: 'JOAO' });
 
-    expect(res.body).toEqual([expect.objectContaining({ id: '1', name: 'João da Silva' })]);
+    expect(res.body.data).toEqual([expect.objectContaining({ id: '1', name: 'João da Silva' })]);
   });
 
   it('GET /:id returns 404 when it does not exist', async () => {

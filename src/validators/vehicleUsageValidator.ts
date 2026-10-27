@@ -10,6 +10,8 @@ export interface VehicleUsageStart {
   startDate: Date;
 }
 
+// Parses an optional ISO 8601 date string ('2026-01-01T08:00:00Z' -> Date). Missing or null -> undefined,
+// so the caller can default to now. Non-strings, invalid dates and dates after now add an error instead.
 function optionalPastDate(value: unknown, field: string, now: Date, errors: string[]): Date | undefined {
   if (value === undefined || value === null) return undefined;
 
@@ -25,6 +27,8 @@ function optionalPastDate(value: unknown, field: string, now: Date, errors: stri
   return date;
 }
 
+// Parses the body that starts a usage: driverId and vehicleId must be valid ids, reason is trimmed and
+// startDate defaults to now. Other fields are dropped. Throws 400 with every problem found in details.
 export function validateUsageStart(body: unknown, now: Date): VehicleUsageStart {
   const data = asRecord(body);
   const errors: string[] = [];
@@ -44,6 +48,8 @@ export function validateUsageStart(body: unknown, now: Date): VehicleUsageStart 
   return { driverId, vehicleId, reason, startDate: startDate ?? now };
 }
 
+// Parses the body that finishes a usage into its end date: defaults to now, cannot be in the future nor
+// before the start date. Throws 400 with the problem in details.
 export function validateUsageFinish(body: unknown, startDate: Date, now: Date): Date {
   const errors: string[] = [];
 

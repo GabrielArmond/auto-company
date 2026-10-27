@@ -7,7 +7,8 @@ export function createVehicleController(vehicleService: VehicleService) {
     async list(req: Request, res: Response) {
       const color = queryString(req.query.color);
       const brand = queryString(req.query.brand);
-      res.json(await vehicleService.list({ color, brand }));
+      const pagination = { limit: queryString(req.query.limit), cursor: queryString(req.query.cursor) };
+      res.json(await vehicleService.list({ color, brand }, pagination));
     },
 
     async getById(req: Request<{ id: string }>, res: Response) {

@@ -33,22 +33,22 @@ describe('vehicleService', () => {
 
   describe('list', () => {
     it('lists all without filters', async () => {
-      expect(await service.list()).toHaveLength(3);
+      expect((await service.list()).data).toHaveLength(3);
     });
 
     it('filters by color', async () => {
       const result = await service.list({ color: 'Black' });
-      expect(result.map((v) => v.id)).toEqual(['1', '3']);
+      expect(result.data.map((v) => v.id)).toEqual(['1', '3']);
     });
 
     it('filters by brand', async () => {
       const result = await service.list({ brand: 'Fiat' });
-      expect(result.map((v) => v.id)).toEqual(['1', '2']);
+      expect(result.data.map((v) => v.id)).toEqual(['1', '2']);
     });
 
     it('filters by color and brand together', async () => {
       const result = await service.list({ color: 'Black', brand: 'Fiat' });
-      expect(result.map((v) => v.id)).toEqual(['1']);
+      expect(result.data.map((v) => v.id)).toEqual(['1']);
     });
 
     it.each([
@@ -57,7 +57,7 @@ describe('vehicleService', () => {
       { color: 'bLaCk', brand: 'FiAt' },
     ])('filters ignoring case (%o)', async (filters) => {
       const result = await service.list(filters);
-      expect(result.map((v) => v.id)).toEqual(['1']);
+      expect(result.data.map((v) => v.id)).toEqual(['1']);
     });
 
     it('ignores empty filters and trims whitespace', async () => {
@@ -65,7 +65,7 @@ describe('vehicleService', () => {
 
       await service.list({ color: '  ', brand: ' Fiat ' });
 
-      expect(spy).toHaveBeenCalledWith({ brand: 'Fiat' });
+      expect(spy).toHaveBeenCalledWith({ brand: 'Fiat' }, { limit: 20 });
     });
   });
 

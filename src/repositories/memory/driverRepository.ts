@@ -1,6 +1,7 @@
 import type { Driver, DriverInput } from '../../models/driver';
 import type { DriverRepository } from '../driverRepository';
 import { matchesNameQuery } from '../../utils/nameSearch';
+import { compareIds, toPage } from '../../utils/pagination';
 
 type Seed = DriverInput & { id?: string };
 
@@ -19,8 +20,13 @@ export function createInMemoryDriverRepository(seed: Seed[] = []): DriverReposit
   for (const { id, ...data } of seed) save(id ?? String(nextId++), data);
 
   return {
-    async list({ name } = {}) {
-      return [...docs.values()].filter((d) => !name || matchesNameQuery(d.name, name));
+    async list({ name }, { limit, cursor }) {
+      const drivers = [...docs.values()]
+        .filter((d) => !name || matchesNameQuery(d.name, name))
+        .filter((d) => !cursor || d.id > cursor)
+        .sort(compareIds);
+
+      return toPage(drivers, limit);
     },
 
     async findById(id) {

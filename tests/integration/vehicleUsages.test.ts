@@ -38,7 +38,7 @@ describe('API /api/vehicle-usages', () => {
 
     const list = await api.get('/api/vehicle-usages');
     expect(list.status).toBe(200);
-    expect(list.body).toEqual([expect.objectContaining({ id, driver: expect.objectContaining({ name: 'Ana Lima' }) })]);
+    expect(list.body.data).toEqual([expect.objectContaining({ id, driver: expect.objectContaining({ name: 'Ana Lima' }) })]);
 
     expect((await api.get(`/api/vehicle-usages/${id}`)).body.id).toBe(id);
   });

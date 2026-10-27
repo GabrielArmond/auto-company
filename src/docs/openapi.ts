@@ -1,6 +1,7 @@
 import type { OpenAPIV3 } from 'openapi-types';
 import { API_KEY_HEADER } from '../middlewares/requireApiKey';
 import { ID_PATTERN } from '../utils/isValidId';
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from '../validators/paginationValidator';
 
 const ref = (schema: string): OpenAPIV3.ReferenceObject => ({ $ref: `#/components/schemas/${schema}` });
 
@@ -15,6 +16,7 @@ const jsonResponse = (
 const errorResponse = (description: string) => jsonResponse(description, ref('Error'));
 
 const unauthorized = errorResponse('Missing or invalid API key');
+const tooManyRequests = errorResponse('Too many requests; retry after the time in the Retry-After header');
 
 const jsonBody = (schema: string): OpenAPIV3.RequestBodyObject => ({
   required: true,
@@ -22,6 +24,35 @@ const jsonBody = (schema: string): OpenAPIV3.RequestBodyObject => ({
 });
 
 const idSchema: OpenAPIV3.SchemaObject = { type: 'string', pattern: ID_PATTERN };
+
+const paginationParams: OpenAPIV3.ParameterObject[] = [
+  {
+    name: 'limit',
+    in: 'query',
+    schema: { type: 'integer', minimum: 1, maximum: MAX_PAGE_SIZE, default: DEFAULT_PAGE_SIZE },
+    description: 'Page size',
+  },
+  {
+    name: 'cursor',
+    in: 'query',
+    schema: { type: 'string', pattern: ID_PATTERN },
+    description: 'nextCursor returned by the previous page; omit it to get the first page',
+  },
+];
+
+const pageResponse = (description: string, itemSchema: string) =>
+  jsonResponse(description, {
+    type: 'object',
+    required: ['data', 'nextCursor'],
+    properties: {
+      data: { type: 'array', items: ref(itemSchema) },
+      nextCursor: {
+        type: 'string',
+        nullable: true,
+        description: 'Pass it as ?cursor= to get the next page; null on the last page.',
+      },
+    },
+  });
 
 const idParam = (resource: string): OpenAPIV3.ParameterObject => ({
   name: 'id',
@@ -54,7 +85,8 @@ export const openApiDocument: OpenAPIV3.Document = {
     version: '1.0.0',
     description:
       "Web API to manage the usage of a company's vehicles. " +
-      'Every route except /health requires the API key in the X-API-Key header (use the Authorize button).',
+      'Every route except /health requires the API key in the X-API-Key header (use the Authorize button). ' +
+      'Requests are rate limited per client IP; lists are paginated with ?limit= and ?cursor=.',
   },
   // Relative URL so "Try it out" calls the same host serving the docs.
   servers: [{ url: '/api' }],
@@ -91,14 +123,17 @@ export const openApiDocument: OpenAPIV3.Document = {
       get: {
         tags: ['Vehicles'],
         summary: 'List vehicles',
-        description: 'Filters match the whole value, ignoring case, and can be combined.',
+        description: 'Filters match the whole value, ignoring case, and can be combined. Ordered by id.',
         parameters: [
           { name: 'color', in: 'query', schema: { type: 'string' }, example: 'Black' },
           { name: 'brand', in: 'query', schema: { type: 'string' }, example: 'Fiat' },
+          ...paginationParams,
         ],
         responses: {
-          200: jsonResponse('Vehicles found', { type: 'array', items: ref('Vehicle') }),
+          200: pageResponse('Vehicles found', 'Vehicle'),
+          400: errorResponse('Invalid query parameters'),
           401: unauthorized,
+          429: tooManyRequests,
         },
       },
       post: {
@@ -110,6 +145,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           400: errorResponse('Invalid data'),
           401: unauthorized,
           409: errorResponse('Plate already registered'),
+          429: tooManyRequests,
         },
       },
     },
@@ -122,6 +158,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           200: jsonResponse('Vehicle found', ref('Vehicle')),
           401: unauthorized,
           404: errorResponse('Vehicle not found'),
+          429: tooManyRequests,
         },
       },
       put: {
@@ -135,6 +172,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           401: unauthorized,
           404: errorResponse('Vehicle not found'),
           409: errorResponse('Plate already registered'),
+          429: tooManyRequests,
         },
       },
       delete: {
@@ -145,6 +183,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           401: unauthorized,
           404: errorResponse('Vehicle not found'),
           409: errorResponse('Vehicle is in use'),
+          429: tooManyRequests,
         },
       },
     },
@@ -166,6 +205,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           200: jsonResponse('Vehicle found', ref('Vehicle')),
           401: unauthorized,
           404: errorResponse('Vehicle not found'),
+          429: tooManyRequests,
         },
       },
     },
@@ -175,11 +215,13 @@ export const openApiDocument: OpenAPIV3.Document = {
         summary: 'List drivers',
         description:
           'The name filter ignores case and accents and matches the start of any word: ' +
-          '"joao", "silva" and "jo sil" all find "João da Silva".',
-        parameters: [{ name: 'name', in: 'query', schema: { type: 'string' }, example: 'joao' }],
+          '"joao", "silva" and "jo sil" all find "João da Silva". Ordered by id.',
+        parameters: [{ name: 'name', in: 'query', schema: { type: 'string' }, example: 'joao' }, ...paginationParams],
         responses: {
-          200: jsonResponse('Drivers found', { type: 'array', items: ref('Driver') }),
+          200: pageResponse('Drivers found', 'Driver'),
+          400: errorResponse('Invalid query parameters'),
           401: unauthorized,
+          429: tooManyRequests,
         },
       },
       post: {
@@ -190,6 +232,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           201: jsonResponse('Driver created', ref('Driver')),
           400: errorResponse('Invalid data'),
           401: unauthorized,
+          429: tooManyRequests,
         },
       },
     },
@@ -202,6 +245,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           200: jsonResponse('Driver found', ref('Driver')),
           401: unauthorized,
           404: errorResponse('Driver not found'),
+          429: tooManyRequests,
         },
       },
       put: {
@@ -213,6 +257,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           400: errorResponse('Invalid data'),
           401: unauthorized,
           404: errorResponse('Driver not found'),
+          429: tooManyRequests,
         },
       },
       delete: {
@@ -223,6 +268,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           401: unauthorized,
           404: errorResponse('Driver not found'),
           409: errorResponse('Driver is using a vehicle'),
+          429: tooManyRequests,
         },
       },
     },
@@ -231,9 +277,12 @@ export const openApiDocument: OpenAPIV3.Document = {
         tags: ['Vehicle usages'],
         summary: 'List vehicle usages',
         description: 'Most recent first, with the driver name and the vehicle information.',
+        parameters: paginationParams,
         responses: {
-          200: jsonResponse('Vehicle usages found', { type: 'array', items: ref('VehicleUsage') }),
+          200: pageResponse('Vehicle usages found', 'VehicleUsage'),
+          400: errorResponse('Invalid query parameters'),
           401: unauthorized,
+          429: tooManyRequests,
         },
       },
       post: {
@@ -246,6 +295,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           401: unauthorized,
           404: errorResponse('Vehicle or driver not found'),
           409: errorResponse('Vehicle already in use, or driver already using another vehicle'),
+          429: tooManyRequests,
         },
       },
     },
@@ -258,6 +308,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           200: jsonResponse('Vehicle usage found', ref('VehicleUsage')),
           401: unauthorized,
           404: errorResponse('Vehicle usage not found'),
+          429: tooManyRequests,
         },
       },
     },
@@ -276,6 +327,7 @@ export const openApiDocument: OpenAPIV3.Document = {
           401: unauthorized,
           404: errorResponse('Vehicle usage not found'),
           409: errorResponse('Vehicle usage already finished'),
+          429: tooManyRequests,
         },
       },
     },

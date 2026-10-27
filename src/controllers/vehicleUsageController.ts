@@ -1,10 +1,12 @@
 import type { Request, Response } from 'express';
 import type { VehicleUsageService } from '../services/vehicleUsageService';
+import { queryString } from '../utils/queryString';
 
 export function createVehicleUsageController(vehicleUsageService: VehicleUsageService) {
   return {
-    async list(_req: Request, res: Response) {
-      res.json(await vehicleUsageService.list());
+    async list(req: Request, res: Response) {
+      const pagination = { limit: queryString(req.query.limit), cursor: queryString(req.query.cursor) };
+      res.json(await vehicleUsageService.list(pagination));
     },
 
     async getById(req: Request<{ id: string }>, res: Response) {

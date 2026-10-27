@@ -1,6 +1,7 @@
 import type { DocumentReference, Firestore } from 'firebase-admin/firestore';
 import type { VehicleUsage } from '../../models/vehicleUsage';
 import { HttpError } from '../../utils/HttpError';
+import { toPage } from '../../utils/pagination';
 import type { VehicleUsageRepository } from '../vehicleUsageRepository';
 import { toEntity } from './toEntity';
 
@@ -27,9 +28,16 @@ export function createFirestoreVehicleUsageRepository(db: Firestore): VehicleUsa
   return {
     findById,
 
-    async list() {
-      const snapshot = await usages.orderBy('startDate', 'desc').get();
-      return snapshot.docs.map((d) => toEntity<VehicleUsage>(d));
+    async list({ limit, cursor }) {
+      let query = usages.orderBy('startDate', 'desc');
+      if (cursor) {
+        const cursorSnapshot = await usages.doc(cursor).get();
+        if (!cursorSnapshot.exists) throw HttpError.badRequest('Invalid cursor');
+        query = query.startAfter(cursorSnapshot);
+      }
+
+      const snapshot = await query.limit(limit + 1).get();
+      return toPage(snapshot.docs.map((d) => toEntity<VehicleUsage>(d)), limit);
     },
 
     findActiveByVehicle: (vehicleId) => findByLock(vehicleLock(vehicleId)),

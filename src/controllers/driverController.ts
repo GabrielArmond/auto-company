@@ -5,7 +5,8 @@ import { queryString } from '../utils/queryString';
 export function createDriverController(driverService: DriverService) {
   return {
     async list(req: Request, res: Response) {
-      res.json(await driverService.list({ name: queryString(req.query.name) }));
+      const pagination = { limit: queryString(req.query.limit), cursor: queryString(req.query.cursor) };
+      res.json(await driverService.list({ name: queryString(req.query.name) }, pagination));
     },
 
     async getById(req: Request<{ id: string }>, res: Response) {

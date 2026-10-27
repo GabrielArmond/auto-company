@@ -8,7 +8,7 @@ describe('createContainer', () => {
     const driver = await driverService.create({ name: 'Ana' });
     await vehicleUsageService.start({ vehicleId: vehicle.id, driverId: driver.id, reason: 'Client visit' });
 
-    expect(await vehicleUsageService.list()).toHaveLength(1);
+    expect((await vehicleUsageService.list()).data).toHaveLength(1);
   });
 
   it('creates an independent store on each call', async () => {
@@ -17,7 +17,7 @@ describe('createContainer', () => {
 
     const second = await createContainer('memory');
 
-    expect(await second.driverService.list()).toEqual([]);
+    expect((await second.driverService.list()).data).toEqual([]);
   });
 
   it('rejects an unknown database', async () => {

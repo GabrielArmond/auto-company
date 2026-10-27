@@ -3,6 +3,7 @@ import type { VehicleRepository } from '../repositories/vehicleRepository';
 import type { VehicleUsageRepository } from '../repositories/vehicleUsageRepository';
 import { HttpError } from '../utils/HttpError';
 import { isValidId } from '../utils/isValidId';
+import { parsePagination, type PaginationQuery } from '../validators/paginationValidator';
 import { validateUsageFinish, validateUsageStart } from '../validators/vehicleUsageValidator';
 
 export type VehicleUsageService = ReturnType<typeof createVehicleUsageService>;
@@ -29,8 +30,8 @@ export function createVehicleUsageService({
   return {
     getById,
 
-    list() {
-      return vehicleUsageRepository.list();
+    list(pagination: PaginationQuery = {}) {
+      return vehicleUsageRepository.list(parsePagination(pagination));
     },
 
     async start(body: unknown) {

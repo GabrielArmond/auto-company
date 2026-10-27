@@ -26,7 +26,7 @@ describe('driverService', () => {
 
   describe('list', () => {
     it('lists all without filters', async () => {
-      expect(await service.list()).toHaveLength(3);
+      expect((await service.list()).data).toHaveLength(3);
     });
 
     it.each([
@@ -39,7 +39,7 @@ describe('driverService', () => {
       ['pedro', []],
     ])('filters by name %p', async (name, expectedIds) => {
       const result = await service.list({ name });
-      expect(result.map((d) => d.id)).toEqual(expectedIds);
+      expect(result.data.map((d) => d.id)).toEqual(expectedIds);
     });
 
     it('ignores an empty filter and trims whitespace', async () => {
@@ -48,8 +48,8 @@ describe('driverService', () => {
       await service.list({ name: '   ' });
       await service.list({ name: ' maria ' });
 
-      expect(spy).toHaveBeenNthCalledWith(1, {});
-      expect(spy).toHaveBeenNthCalledWith(2, { name: 'maria' });
+      expect(spy).toHaveBeenNthCalledWith(1, {}, { limit: 20 });
+      expect(spy).toHaveBeenNthCalledWith(2, { name: 'maria' }, { limit: 20 });
     });
   });
 

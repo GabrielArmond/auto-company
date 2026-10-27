@@ -135,6 +135,9 @@ dados do JSON. Depois inicie com `npm run dev`.
 | `PORT`                    | Porta HTTP da API (padrão `3000`)                                              |
 | `CORS_ORIGIN`             | Origens liberadas no CORS (padrão `*`)                                         |
 | `API_KEYS`                | Chaves de acesso à API, separadas por vírgula (mínimo de 32 caracteres cada)   |
+| `RATE_LIMIT_WINDOW_MS`    | Janela do limite de requisições, em milissegundos (padrão `60000`)             |
+| `RATE_LIMIT_MAX`          | Requisições permitidas por IP em cada janela (padrão `100`)                    |
+| `TRUST_PROXY`             | Quantidade de proxies reversos na frente da API (padrão `0`)                   |
 | `DATABASE`                | `memory` (padrão) ou `firestore`                                               |
 | `FIRESTORE_EMULATOR_HOST` | Endereço do emulador (ex.: `localhost:8080`); dispensa as credenciais abaixo   |
 | `FIREBASE_PROJECT_ID`     | Campo `project_id` do JSON da conta de serviço                                 |
@@ -172,6 +175,25 @@ Todas as rotas, exceto `/api/health` e a documentação (`/api/docs`), exigem um
 curl http://localhost:3000/api/vehicles -H "X-API-Key: local-demo-api-key-change-me-0123456789"
 ```
 
+### Limite de requisições
+
+Cada IP pode fazer até `RATE_LIMIT_MAX` requisições (padrão 100) a cada `RATE_LIMIT_WINDOW_MS`
+(padrão 1 minuto). Acima disso, a API responde **429 Too Many Requests** com o cabeçalho
+`Retry-After`, que informa em quantos segundos tentar de novo. Toda resposta traz os cabeçalhos
+`RateLimit` e `RateLimit-Policy` com o limite e quantas requisições restam. `/api/health` e a
+documentação ficam fora do limite.
+
+As requisições com chave de API errada também contam, o que impede tentar adivinhar a chave por
+força bruta.
+
+Se a API estiver atrás de um proxy reverso (load balancer, Nginx, Cloud Run etc.), defina
+`TRUST_PROXY` com a quantidade de proxies (normalmente `1`). Sem isso, todos os clientes parecem vir
+do IP do proxy e dividem o mesmo limite. Já um valor maior que o real permite que um cliente forje o
+cabeçalho `X-Forwarded-For` e escape do limite; por isso `true` não é aceito.
+
+> O contador fica na memória de cada instância da API. Com várias instâncias, cada uma conta
+> separadamente; nesse caso, use um store compartilhado (como Redis) no `express-rate-limit`.
+
 ### Documentação interativa (Swagger)
 
 Com a API rodando, acesse **http://localhost:3000/api/docs**. Lá estão todos os endpoints, com
@@ -202,7 +224,7 @@ curl -X POST http://localhost:3000/api/vehicle-usages \
   -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
   -d '{"vehicleId": "<ID_DO_AUTOMOVEL>", "driverId": "<ID_DO_MOTORISTA>", "reason": "Visita a cliente"}'
 
-# 4. Listar as utilizações (com nome do motorista e dados do automóvel)
+# 4. Listar as utilizações (com nome do motorista e dados do automóvel), paginadas em "data"
 curl http://localhost:3000/api/vehicle-usages -H "X-API-Key: $API_KEY"
 
 # 5. Finalizar a utilização
@@ -216,11 +238,37 @@ Enquanto a utilização do passo 3 estiver ativa, tentar usar o mesmo automóvel
 
 Todas as rotas ficam sob o prefixo `/api`. Os nomes de campos e rotas estão em inglês.
 
+### Paginação
+
+As listagens (`GET /api/vehicles`, `/api/drivers` e `/api/vehicle-usages`) são paginadas e
+respondem neste formato:
+
+```json
+{ "data": [ ... ], "nextCursor": "q8Zt1nV3kXyP" }
+```
+
+| Parâmetro | Descrição                                                            |
+| --------- | -------------------------------------------------------------------- |
+| `limit`   | Itens por página, de 1 a 100 (padrão `20`)                           |
+| `cursor`  | O `nextCursor` da página anterior; sem ele, vem a primeira página    |
+
+Para percorrer tudo, repita a chamada passando o `nextCursor` recebido até ele vir `null`:
+
+```bash
+curl "http://localhost:3000/api/vehicles?limit=50" -H "X-API-Key: $API_KEY"
+curl "http://localhost:3000/api/vehicles?limit=50&cursor=<nextCursor>" -H "X-API-Key: $API_KEY"
+```
+
+O cursor é o id do último item da página, e não um número de página. Assim, cada página é lida
+diretamente a partir desse ponto, sem reler as anteriores, e cadastros feitos durante a navegação
+não fazem itens se repetirem ou serem pulados. Automóveis e motoristas são ordenados pelo id, e as
+utilizações, da mais recente para a mais antiga. Um `limit` ou `cursor` inválido retorna 400.
+
 ### Automóveis (`vehicles`)
 
 | Método | Rota                         | Descrição                                            |
 | ------ | ---------------------------- | ---------------------------------------------------- |
-| GET    | `/api/vehicles`              | Lista (filtros opcionais: `?color=` e `?brand=`)     |
+| GET    | `/api/vehicles`              | Lista paginada (filtros: `?color=` e `?brand=`)      |
 | GET    | `/api/vehicles/:id`          | Busca pelo id                                        |
 | GET    | `/api/vehicles/plate/:plate` | Busca pela placa                                     |
 | POST   | `/api/vehicles`              | Cadastra `{ plate, color, brand }`                   |
@@ -240,7 +288,7 @@ Todas as rotas ficam sob o prefixo `/api`. Os nomes de campos e rotas estão em 
 
 | Método | Rota               | Descrição                        |
 | ------ | ------------------ | -------------------------------- |
-| GET    | `/api/drivers`     | Lista (filtro opcional: `?name=`) |
+| GET    | `/api/drivers`     | Lista paginada (filtro: `?name=`) |
 | GET    | `/api/drivers/:id` | Busca pelo id                    |
 | POST   | `/api/drivers`     | Cadastra `{ name }`              |
 | PUT    | `/api/drivers/:id` | Atualiza `{ name }`              |
@@ -255,7 +303,7 @@ Todas as rotas ficam sob o prefixo `/api`. Os nomes de campos e rotas estão em 
 
 | Método | Rota                             | Descrição                                                |
 | ------ | -------------------------------- | -------------------------------------------------------- |
-| GET    | `/api/vehicle-usages`            | Lista, da mais recente para a mais antiga                |
+| GET    | `/api/vehicle-usages`            | Lista paginada, da mais recente para a mais antiga       |
 | GET    | `/api/vehicle-usages/:id`        | Busca pelo id                                            |
 | POST   | `/api/vehicle-usages`            | Inicia `{ driverId, vehicleId, reason, startDate? }`     |
 | PATCH  | `/api/vehicle-usages/:id/finish` | Finaliza `{ endDate? }`                                  |
@@ -286,6 +334,7 @@ As respostas de erro seguem o formato:
 | 404    | Registro ou rota não encontrados                             |
 | 409    | Conflito: placa repetida, regra de utilização, exclusão bloqueada |
 | 413    | Corpo da requisição acima de 100 KB                          |
+| 429    | Limite de requisições excedido (veja `Retry-After`)          |
 | 500    | Erro inesperado                                              |
 
 Os ids aceitam apenas letras, números, `-` e `_`, com até 128 caracteres. Um id fora desse formato
@@ -379,6 +428,8 @@ Assim, ninguém consegue ler ou gravar dados sem passar pelas validações da AP
 | `Failed to parse private key` / `Invalid PEM`                    | `FIREBASE_PRIVATE_KEY` mal copiada. Use aspas duplas e mantenha os `\n` do JSON.               |
 | `16 UNAUTHENTICATED` / `7 PERMISSION_DENIED` ao iniciar          | Chave da conta de serviço revogada ou de outro projeto. Gere uma nova (opção 3, passo 3).       |
 | `ECONNREFUSED ...:8080` ao iniciar                               | O emulador não está rodando. Suba com `docker compose up firestore`.                            |
+| `Invalid TRUST_PROXY "..."`                                      | `TRUST_PROXY` aceita apenas um número inteiro (a quantidade de proxies). Veja Limite de requisições. |
+| `429` com `Too many requests...`                                 | Limite de requisições atingido. Aguarde os segundos de `Retry-After` ou aumente `RATE_LIMIT_MAX`. |
 | `401` com `Invalid or missing API key`                           | Envie o cabeçalho `X-API-Key` com uma das chaves de `API_KEYS`.                                 |
 | `address already in use` / `port is already allocated`           | A porta já está ocupada. Mude `PORT` no `.env` ou use `API_PORT=3001 docker compose up`.        |
 | Filtro não encontra registros cadastrados antes de uma atualização | Registros antigos não têm os campos de busca. Atualize o registro (`PUT`) para recriá-los.     |

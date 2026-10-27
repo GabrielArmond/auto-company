@@ -3,6 +3,7 @@ import type { VehicleRepository } from '../repositories/vehicleRepository';
 import type { VehicleUsageRepository } from '../repositories/vehicleUsageRepository';
 import { HttpError } from '../utils/HttpError';
 import { isValidId } from '../utils/isValidId';
+import { parsePagination, type PaginationQuery } from '../validators/paginationValidator';
 import { normalizePlate, validateVehicle } from '../validators/vehicleValidator';
 
 export type VehicleService = ReturnType<typeof createVehicleService>;
@@ -34,12 +35,12 @@ export function createVehicleService(
     getById,
     getByLicensePlate,
 
-    list({ color, brand }: VehicleFilters = {}) {
+    list({ color, brand }: VehicleFilters = {}, pagination: PaginationQuery = {}) {
       const filters: VehicleFilters = {};
       if (color?.trim()) filters.color = color.trim();
       if (brand?.trim()) filters.brand = brand.trim();
 
-      return vehicleRepository.list(filters);
+      return vehicleRepository.list(filters, parsePagination(pagination));
     },
 
     async create(body: unknown) {

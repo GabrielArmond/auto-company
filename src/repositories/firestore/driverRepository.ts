@@ -1,6 +1,7 @@
-import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
+import { FieldPath, type DocumentSnapshot, type Firestore, type Query } from 'firebase-admin/firestore';
 import type { Driver, DriverInput } from '../../models/driver';
 import { buildPrefixIndex, matchesNameQuery, toSearchWords } from '../../utils/nameSearch';
+import { toPage } from '../../utils/pagination';
 import type { DriverRepository } from '../driverRepository';
 import { toEntity } from './toEntity';
 
@@ -11,10 +12,13 @@ interface SearchFields {
   nameSearch: string[];
 }
 
+// Builds the stored document from the input, adding the name prefixes used by the name filter:
+// { name: 'Ana Lima' } -> { name: 'Ana Lima', nameSearch: ['a', 'an', 'ana', 'l', 'li', 'lim', 'lima'] }.
 function toDocument(data: DriverInput): DriverInput & SearchFields {
   return { ...data, nameSearch: buildPrefixIndex(data.name) };
 }
 
+// Parses a stored document back into a Driver, removing the search-only field.
 function toDriver(snapshot: DocumentSnapshot): Driver {
   const { nameSearch, ...driver } = toEntity<Driver & SearchFields>(snapshot);
   return driver;
@@ -24,14 +28,29 @@ export function createFirestoreDriverRepository(db: Firestore): DriverRepository
   const drivers = db.collection(COLLECTION);
 
   return {
-    async list({ name } = {}) {
-      const terms = toSearchWords(name ?? '');
-      if (!terms.length) return (await drivers.get()).docs.map(toDriver);
+    async list({ name = '' }, { limit, cursor }) {
+      const terms = toSearchWords(name);
+      let query: Query = drivers.orderBy(FieldPath.documentId());
+
+      if (!terms.length) {
+        if (cursor) query = query.startAfter(cursor);
+        return toPage((await query.limit(limit + 1).get()).docs.map(toDriver), limit);
+      }
 
       const longest = terms.reduce((a, b) => (b.length > a.length ? b : a));
-      const snapshot = await drivers.where('nameSearch', 'array-contains', longest).get();
+      query = query.where('nameSearch', 'array-contains', longest);
 
-      return snapshot.docs.map(toDriver).filter((driver) => matchesNameQuery(driver.name, name ?? ''));
+      const matches: Driver[] = [];
+      let after = cursor;
+      while (matches.length <= limit) {
+        const batch = await (after ? query.startAfter(after) : query).limit(limit + 1).get();
+        matches.push(...batch.docs.map(toDriver).filter((driver) => matchesNameQuery(driver.name, name)));
+
+        if (batch.size <= limit) break;
+        after = batch.docs[batch.size - 1].id;
+      }
+
+      return toPage(matches, limit);
     },
 
     async findById(id) {

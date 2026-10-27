@@ -48,7 +48,7 @@ describe('vehicleUsageService', () => {
 
   describe('list', () => {
     it('lists usages, most recent first, with driver and vehicle data', async () => {
-      const result = await service.list();
+      const { data: result } = await service.list();
 
       expect(result.map((u) => u.id)).toEqual(['u1', 'u2']);
       expect(result[0]).toMatchObject({

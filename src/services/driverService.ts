@@ -4,6 +4,7 @@ import type { VehicleUsageRepository } from '../repositories/vehicleUsageReposit
 import { HttpError } from '../utils/HttpError';
 import { isValidId } from '../utils/isValidId';
 import { validateDriver } from '../validators/driverValidator';
+import { parsePagination, type PaginationQuery } from '../validators/paginationValidator';
 
 export type DriverService = ReturnType<typeof createDriverService>;
 
@@ -20,11 +21,11 @@ export function createDriverService(
   return {
     getById,
 
-    list({ name }: DriverFilters = {}) {
+    list({ name }: DriverFilters = {}, pagination: PaginationQuery = {}) {
       const filters: DriverFilters = {};
       if (name?.trim()) filters.name = name.trim();
 
-      return driverRepository.list(filters);
+      return driverRepository.list(filters, parsePagination(pagination));
     },
 
     async create(body: unknown) {

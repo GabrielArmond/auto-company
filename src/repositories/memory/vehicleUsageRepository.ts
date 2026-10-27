@@ -1,5 +1,6 @@
 import type { VehicleUsage, VehicleUsageInput } from '../../models/vehicleUsage';
 import { HttpError } from '../../utils/HttpError';
+import { compareIds, toPage } from '../../utils/pagination';
 import type { VehicleUsageRepository } from '../vehicleUsageRepository';
 
 type Seed = VehicleUsageInput & { id?: string; endDate?: Date | null };
@@ -29,8 +30,15 @@ export function createInMemoryVehicleUsageRepository(seed: Seed[] = []): Vehicle
   for (const usage of seed) insert(usage);
 
   return {
-    async list() {
-      return [...docs.values()].sort((a, b) => b.startDate.localeCompare(a.startDate));
+    async list({ limit, cursor }) {
+      const usages = [...docs.values()].sort(
+        (a, b) => b.startDate.localeCompare(a.startDate) || compareIds(b, a),
+      );
+
+      const start = cursor ? usages.findIndex((usage) => usage.id === cursor) + 1 : 0;
+      if (cursor && !start) throw HttpError.badRequest('Invalid cursor');
+
+      return toPage(usages.slice(start), limit);
     },
 
     async findById(id) {

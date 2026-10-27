@@ -5,10 +5,15 @@ import { asRecord, requiredString } from './common';
 // Accepts the legacy Brazilian format (ABC1234) and the Mercosur format (ABC1D23).
 const PLATE_REGEX = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/;
 
+// Normalizes a plate typed in any common way to the stored form, removing spaces and hyphens and
+// uppercasing: 'abc-1d23' -> 'ABC1D23', ' abc 1234 ' -> 'ABC1234'. Non-strings are returned unchanged
+// so the validator can report them as missing.
 export function normalizePlate(plate: unknown): unknown {
   return typeof plate === 'string' ? plate.replace(/[\s-]/g, '').toUpperCase() : plate;
 }
 
+// Parses a request body into a VehicleInput: normalizes the plate, trims color and brand and drops any
+// other field. Throws 400 with every problem found in details.
 export function validateVehicle(body: unknown): VehicleInput {
   const data = asRecord(body);
   const errors: string[] = [];
